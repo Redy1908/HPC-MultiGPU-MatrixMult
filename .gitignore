@@ -1,0 +1,9 @@
+.clang-format
+
+bin/*
+
+!bin/.gitkeep
+
+logs/*
+
+!logs/.gitkeep
