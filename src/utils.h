@@ -5,8 +5,8 @@
 extern "C" {
 #endif
 
-int initialize_matrix_from_file(const char* file, double** matrix, int* rows, int* cols);
-int initialize_matrix_to_zero(double** matrix_ptr, int rows, int cols);
+void initialize_matrix_from_file(const char* file, double** matrix, int* rows, int* cols, int rank);
+void initialize_matrix_to_zero(double** matrix_ptr, int rows, int cols, int rank);
 double get_cur_time();
 
 #ifdef __cplusplus

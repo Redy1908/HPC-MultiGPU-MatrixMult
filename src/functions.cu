@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <mpi.h>
 
 #include "functions.h"
 
@@ -6,32 +7,32 @@
 #define MIN(a,b) (((a)<(b))?(a):(b))
 #endif
 
-cudaDeviceProp get_gpu_properties() {
-    cudaDeviceProp prop;
-    int device_count;
-    cudaError_t err;
+#define CUDA_CHECK(err, rank)                                                         \
+  if (err != cudaSuccess) {                                                           \
+    fprintf(stderr, "CUDA Error in %s at line %d (Rank %d): %s\n", __FILE__, __LINE__,\
+            rank, cudaGetErrorString(err));                                           \
+    MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);                                          \
+  }
 
-    err = cudaGetDeviceCount(&device_count);
-    if (err != cudaSuccess) {
-        fprintf(stderr, "Error in get_gpu_properties: cudaGetDeviceCount failed: %s\n", cudaGetErrorString(err));
-        exit(EXIT_FAILURE); 
+cudaDeviceProp set_gpu_and_get_properties(int rank) {
+    cudaDeviceProp prop;
+    int device_count, device;
+
+    CUDA_CHECK(cudaGetDeviceCount(&device_count), rank);
+
+    if (device_count == 0) {
+        fprintf(stderr, "Rank %d Error in get_gpu_properties: No CUDA-capable devices found.\n", rank);
+        MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
     }
     
-    if (device_count == 0) {
-        fprintf(stderr, "Error in get_gpu_properties: No CUDA-capable devices found.\n");
-        exit(EXIT_FAILURE);
-    }
-
-    err = cudaGetDeviceProperties(&prop, 0); 
-    if (err != cudaSuccess) {
-        fprintf(stderr, "Error in get_gpu_properties: cudaGetDeviceProperties for device 0 failed: %s\n", cudaGetErrorString(err));
-        exit(EXIT_FAILURE);
-    }
+    device = 0;
+    CUDA_CHECK(cudaSetDevice(device), rank);
+    CUDA_CHECK(cudaGetDeviceProperties(&prop, device), rank);
     
     return prop;
 }
 
-int calculate_optimal_tile_width(cudaDeviceProp prop) {
+int calculate_optimal_tile_width(cudaDeviceProp prop, int rank) {
     int max_threads_per_block_sqrt = (int)sqrt((double)prop.maxThreadsPerBlock);
 
     for (int tile_width = MIN(prop.warpSize, max_threads_per_block_sqrt); tile_width >= 4; tile_width--) {
@@ -40,15 +41,12 @@ int calculate_optimal_tile_width(cudaDeviceProp prop) {
         size_t required_shared_memory = 2 * threads_per_block * sizeof(double);
 
         if (required_shared_memory <= prop.sharedMemPerBlock) {
-            printf("Selected tile_width = %d\n", tile_width);
-            printf("Threads per block = %d (Max: %d)\n", threads_per_block, prop.maxThreadsPerBlock);
-            printf("Shared memory per block required = %zu bytes (Max: %zu)\n", required_shared_memory, prop.sharedMemPerBlock);
             return tile_width;
         }
     }
 
-    fprintf(stderr, "Error: Unable to determine a suitable tile_width.\n");
-    exit(EXIT_FAILURE);
+    fprintf(stderr, "Rank %d: Error: Unable to determine a suitable tile_width.\n", rank);
+    MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
     return 0;
 }
 
