@@ -2,7 +2,13 @@
 
 ## Esecuzione su Cluster con SLURM
 
-Per eseguire il codice sul cluster:
+Dalla directory root del progetto generare le matrici A e B:
+
+```bash
+./matrix_generation/matrix_generation.out
+```
+
+Dalla directory root del progetto lanciare il job sul cluster:
 
 ```bash
 sbatch ./scripts/job.slurm
