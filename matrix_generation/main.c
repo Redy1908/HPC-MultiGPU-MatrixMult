@@ -3,14 +3,16 @@
 #include <time.h>
 
 void generate_matrix(double** matrix_ptr, int rows, int cols, int debug_mode) {
+    int i, j;
+
     *matrix_ptr = (double*)malloc(rows * cols * sizeof(double));
     if (*matrix_ptr == NULL) {
         fprintf(stderr, "Memory allocation failed in generate_random_matrix\n");
         exit(EXIT_FAILURE);
     }
 
-    for (int i = 0; i < rows; i++) {
-        for (int j = 0; j < cols; j++) {
+    for (i = 0; i < rows; i++) {
+        for (j = 0; j < cols; j++) {
             if(debug_mode){
                 (*matrix_ptr)[i * cols + j] = 2.0;
             }else{
@@ -86,6 +88,7 @@ int main(){
     printf("\nGenerating matrix A...\n");
     generate_matrix(&A, M_A, K_A, debug_mode);
     printf("Matrix A generated.\n");
+
     printf("Generating matrix B...\n");
     generate_matrix(&B, K_B, N_B, debug_mode);
     printf("Matrix B generated.\n");
@@ -93,6 +96,7 @@ int main(){
     printf("\nWriting matrix A to file...\n");
     write_matrix_to_file("inputs/A.bin", A, M_A, K_A);
     printf("Matrix A written to file.\n");
+    
     printf("Writing matrix B to file...\n");
     write_matrix_to_file("inputs/B.bin", B, K_B, N_B);
     printf("Matrix B written to file.\n");

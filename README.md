@@ -2,6 +2,12 @@
 
 ## Esecuzione su Cluster con SLURM
 
+Dalla directory root del progetto compilare il codice per generare le matrici
+
+```bash
+gcc ./matrix_generation/main.c -o ./matrix_generation/matrix_generation.out
+```
+
 Dalla directory root del progetto generare le matrici A e B:
 
 ```bash

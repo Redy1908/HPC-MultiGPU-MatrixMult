@@ -2,17 +2,7 @@
 #include <mpi.h>
 
 #include "functions.h"
-
-#ifndef MIN
-#define MIN(a,b) (((a)<(b))?(a):(b))
-#endif
-
-#define CUDA_CHECK(err, rank)                                                         \
-  if (err != cudaSuccess) {                                                           \
-    fprintf(stderr, "CUDA Error in %s at line %d (Rank %d): %s\n", __FILE__, __LINE__,\
-            rank, cudaGetErrorString(err));                                           \
-    MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);                                          \
-  }
+#include "utils.h"
 
 cudaDeviceProp set_gpu_and_get_properties(int rank) {
     cudaDeviceProp prop;
@@ -33,9 +23,11 @@ cudaDeviceProp set_gpu_and_get_properties(int rank) {
 }
 
 int calculate_optimal_tile_width(cudaDeviceProp prop, int rank) {
+    int tile_width;
+
     int max_threads_per_block_sqrt = (int)sqrt((double)prop.maxThreadsPerBlock);
 
-    for (int tile_width = MIN(prop.warpSize, max_threads_per_block_sqrt); tile_width >= 4; tile_width--) {
+    for (tile_width = MIN(prop.warpSize, max_threads_per_block_sqrt); tile_width >= 4; tile_width--) {
         int threads_per_block = tile_width * tile_width;
         
         size_t required_shared_memory = 2 * threads_per_block * sizeof(double);
@@ -86,8 +78,9 @@ __global__ void matrix_mul_kernel(double* A, double* B, double* C, int M, int N,
     int row = by * tile_width + ty;
     int col = bx * tile_width + tx;
 
+    int phase;
     double c_value = 0;
-    for(int phase = 0; phase < ceil(K/(float)tile_width); ++phase) {
+    for(phase = 0; phase < ceil(K/(float)tile_width); ++phase) {
         if((row < M) && (phase * tile_width + tx) < K)
             s_A[ty * tile_width + tx] = A[row * K + phase * tile_width + tx];
         else
