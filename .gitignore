@@ -1,3 +1,7 @@
+.vscode
+
+.idea
+
 .clang-format
 
 bin/*
