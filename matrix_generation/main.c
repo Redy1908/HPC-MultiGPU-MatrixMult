@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <time.h>
 
-void generate_random_matrix(double** matrix_ptr, int rows, int cols) {
+void generate_matrix(double** matrix_ptr, int rows, int cols, int debug_mode) {
     *matrix_ptr = (double*)malloc(rows * cols * sizeof(double));
     if (*matrix_ptr == NULL) {
         fprintf(stderr, "Memory allocation failed in generate_random_matrix\n");
@@ -11,7 +11,11 @@ void generate_random_matrix(double** matrix_ptr, int rows, int cols) {
 
     for (int i = 0; i < rows; i++) {
         for (int j = 0; j < cols; j++) {
-            (*matrix_ptr)[i * cols + j] = (double)rand() / RAND_MAX;
+            if(debug_mode){
+                (*matrix_ptr)[i * cols + j] = 2.0;
+            }else{
+                (*matrix_ptr)[i * cols + j] = (double)rand() / RAND_MAX;
+            }
         }
     }
 }
@@ -34,10 +38,21 @@ int main(){
 
     double *A, *B;
     int M_A, K_A, K_B, N_B;
+    int debug_mode = 0;
 
     srand(time(NULL));
 
-    printf("Enter the size of matrix A (MxK):\n");
+    printf("Generate debug matrices (all elements = 2.0 otherwise random values)? (1 for yes, 0 for no): ");
+    if (scanf("%d", &debug_mode) != 1) {
+        fprintf(stderr, "Invalid input for debug mode selection.\n");
+        return EXIT_FAILURE;
+    }
+    if (debug_mode != 0 && debug_mode != 1) {
+        fprintf(stderr, "Debug mode must be 0 or 1.\n");
+        return EXIT_FAILURE;
+    }
+
+    printf("\nEnter the size of matrix A (MxK):\n");
     printf("Rows (M): ");
     if (scanf("%d", &M_A) != 1 || M_A <= 0) {
         fprintf(stderr, "Invalid input for matrix A rows.\n");
@@ -69,10 +84,10 @@ int main(){
     }
 
     printf("\nGenerating matrix A...\n");
-    generate_random_matrix(&A, M_A, K_A);
+    generate_matrix(&A, M_A, K_A, debug_mode);
     printf("Matrix A generated.\n");
     printf("Generating matrix B...\n");
-    generate_random_matrix(&B, K_B, N_B);
+    generate_matrix(&B, K_B, N_B, debug_mode);
     printf("Matrix B generated.\n");
 
     printf("\nWriting matrix A to file...\n");
