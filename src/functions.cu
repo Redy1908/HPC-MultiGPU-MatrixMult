@@ -1,7 +1,5 @@
-#include <mpi.h>
-#include <stdio.h>
-
-#include "functions.h"
+#include <math.h>
+#include "functions.cuh"
 #include "utils.h"
 
 cudaDeviceProp set_gpu_and_get_properties(int rank) {
