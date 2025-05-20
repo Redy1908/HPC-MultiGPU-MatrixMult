@@ -1,7 +1,4 @@
-#include <mpi.h>
-#include <stdio.h>
-
-#include "functions.h"
+#include "functions.cuh"
 #include "utils.h"
 
 int main(int argc, char *argv[]) {
