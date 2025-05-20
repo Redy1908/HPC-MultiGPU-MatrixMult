@@ -4,7 +4,7 @@
 int main(int argc, char *argv[]) {
 
   int i, j, M, K, N;
-  double *A, *B, *C;
+  double *A, *B, *C, *all_C_blocks;
   int dims[2], period[2], coord[2], rank, size;
   MPI_Comm grid_comm;
 
@@ -62,6 +62,13 @@ int main(int argc, char *argv[]) {
   int local_K = K / lcm;
   int local_N = N / dims[1];
 
+  int block_size_elements = local_M * local_N;
+
+  if (rank == 0) {
+    all_C_blocks = (double *)malloc(size * block_size_elements * sizeof(double));
+    MALLOC_CHECK(all_C_blocks, rank, "all_C_blocks");
+  }
+
   for (i = 0; i < local_M; i++) {
     for (j = 0; j < local_K; j++) {
       A[i * K + j] = coord[0] * dims[1] * local_K + coord[1] * local_K + i * K + j;
@@ -90,14 +97,6 @@ int main(int argc, char *argv[]) {
   SUMMA(grid_comm, A, B, C, M, K, N, tile_width, rank);
 
   // RICOSTRUZIONE DI C CON TUTTI I RISULTATI PARZIALI
-  int block_size_elements = local_M * local_N;
-  double *all_C_blocks = NULL;
-
-  if (rank == 0) {
-    all_C_blocks = (double *)malloc(size * block_size_elements * sizeof(double));
-    MALLOC_CHECK(all_C_blocks, rank, "all_C_blocks");
-  }
-
   MPI_Gather(C, block_size_elements, MPI_DOUBLE,
              all_C_blocks, block_size_elements, MPI_DOUBLE,
              0, MPI_COMM_WORLD);
