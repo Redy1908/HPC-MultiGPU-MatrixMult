@@ -189,14 +189,17 @@ __global__ void matrix_mul_kernel(double *A, double *B, double *C, int M, int N,
   for (int phase = 0; phase < ceil(K / (float)tile_width); ++phase) {
     if ((row < M) && (phase * tile_width + tx) < K)
       s_A[ty * tile_width + tx] = A[row * K + phase * tile_width + tx];
+    else
+      s_A[ty * tile_width + tx] = 0.0;
 
     if ((phase * tile_width + ty) < K && (col < N))
       s_B[ty * tile_width + tx] = B[(phase * tile_width + ty) * N + col];
+    else
+      s_B[ty * tile_width + tx] = 0.0;
 
     __syncthreads();
 
     for (int k = 0; k < tile_width; ++k) {
-      if ((row < M) && (col < N))
         c_value += s_A[ty * tile_width + k] * s_B[k * tile_width + tx];
     }
     __syncthreads();
