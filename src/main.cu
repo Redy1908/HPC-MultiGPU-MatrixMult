@@ -6,30 +6,142 @@
 
 int main(int argc, char *argv[]) {
 
-  int size, rank;
-  double *h_A_full = NULL, *h_B_full = NULL, *h_C_full = NULL; 
-  int M_A_full, K_A_full, K_B_full, N_B_full;
+  int i, j, M, K, N;
+  double *A, *B, *C;
+  int dims[2], period[2], coord[2], rank, size;
+  MPI_Comm grid_comm;
 
   MPI_Init(&argc, &argv);
 
   MPI_Comm_size(MPI_COMM_WORLD, &size);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-  if(rank == 0) {
-    printf("Process 0: reading matix A from file...\n");
-    initialize_matrix_from_file("inputs/A.bin", &h_A_full, &M_A_full, &K_A_full, rank);
+  dims[0] = size / 2;
+  dims[1] = size / 2;
 
-    printf("\nProcess 0: reading matix B from file...\n");
-    initialize_matrix_from_file("inputs/B.bin", &h_B_full, &K_B_full, &N_B_full, rank);
+  if (dims[0] * dims[1] != size) {
+    if (rank == 0) {
+      fprintf(stderr, "Error: Number of processes must be a perfect square.\n");
+    }
+    MPI_Finalize();
+    return -1;
+  }
 
-    if (K_A_full != K_B_full) {
-      fprintf(stderr, "Rank %d: Error: Matrix A's columns (%d) must match Matrix B's rows (%d).\n", rank, K_A_full, K_B_full);
-      MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+  period[0] = 1;
+  period[1] = 1;
+  MPI_Cart_create(MPI_COMM_WORLD, 2, dims, period, 0, &grid_comm);
+
+  /*---------------------------------------------------------------------------------------
+   * ATTUALE: OGNI PROCESSO ALLOCA LE 3 MATRICI CON LA DIMENSIONE GLOBALE (INTERE) MA NE INIZIALIZZA
+   *          ESCLUSIVAMENTE LA SUE PORZIONI SECONDO SUMMA
+   *
+   * TODO: 2 POSSIBILI APPROCCI:
+   *  1) IL PROCESSO ZERO LEGGE DA FILE LE DIMENSIONI ED IL CONTENUTO DELLE MATRICI A e B ALLOCA
+   *     ED INIZIALIZZA A ZERO LA MATRICE C IN FINE DISTRIBUISCE LE MATRICI SECONDO SUMMA
+   *
+   *  2) OGNI PROCESSO LEGGE LA SUA SOTTO MATRICE A E B DA FILE NON E NECESSARIA LA DIVISIONE
+   *     SECONDO SUMMA SIMILE ALL'APPROCCIO ATTUALE SOLO CON LETTURA DA FILE
+   */
+
+  // AL MOMENTO DIMENSIONI DELLA MATICI FISSE
+  M = 2;
+  K = 4;
+  N = 4;
+
+  int lcm = find_lcm(dims[0], dims[1]);
+
+  A = (double *)malloc(M * K * sizeof(double));
+  MALLOC_CHECK(A, rank, "A");
+
+  B = (double *)malloc(K * N * sizeof(double));
+  MALLOC_CHECK(B, rank, "B");
+
+  C = (double *)malloc(M * N * sizeof(double));
+  MALLOC_CHECK(C, rank, "C");
+
+  MPI_Cart_coords(grid_comm, rank, 2, coord);
+
+  int local_M = M / dims[0];
+  int local_K = K / lcm;
+  int local_N = N / dims[1];
+
+  for (i = 0; i < local_M; i++) {
+    for (j = 0; j < local_K; j++) {
+      A[i * K + j] = coord[0] * dims[1] * local_K + coord[1] * local_K + i * K + j;
+    }
+  }
+
+  for (i = 0; i < local_K; i++) {
+    for (j = 0; j < local_N; j++) {
+      B[i * N + j] = 10 + coord[0] * dims[1] * N + coord[1] * local_N + i * N + j;
+    }
+  }
+
+  for (i = 0; i < local_M; i++) {
+    for (j = 0; j < local_N; j++) {
+      C[i * N + j] = 0.0;
+    }
+  }
+  //--------------------------------------------------------------------------------------
+
+  cudaDeviceProp prop = set_gpu_and_get_properties(rank);
+  
+  int tile_width = 32;
+  check_threads_per_block(prop, tile_width, rank);
+  check_shared_memory_usage(prop, tile_width, rank);
+
+  SUMMA(grid_comm, A, B, C, M, K, N, tile_width, rank);
+
+  // RICOSTRUZIONE DI C CON TUTTI I RISULTATI PARZIALI
+  int block_size_elements = local_M * local_N;
+  double *all_C_blocks = NULL;
+
+  if (rank == 0) {
+    all_C_blocks = (double *)malloc(size * block_size_elements * sizeof(double));
+    MALLOC_CHECK(all_C_blocks, rank, "all_C_blocks");
+  }
+
+  MPI_Gather(C, block_size_elements, MPI_DOUBLE,
+             all_C_blocks, block_size_elements, MPI_DOUBLE,
+             0, MPI_COMM_WORLD);
+
+  if (rank == 0) {
+    for (int p_rank = 0; p_rank < size; p_rank++) {
+      int p_coord[2];
+      MPI_Cart_coords(grid_comm, p_rank, 2, p_coord);
+
+      int start_row_global = p_coord[0] * local_M;
+      int start_col_global = p_coord[1] * local_N;
+
+      double *source_block_ptr = all_C_blocks + p_rank * block_size_elements;
+
+      for (int i = 0; i < local_M; i++) {
+        for (int j = 0; j < local_N; j++) {
+          int global_row_idx = start_row_global + i;
+          int global_col_idx = start_col_global + j;
+
+          if (global_row_idx < M && global_col_idx < N) {
+            C[global_row_idx * N + global_col_idx] = source_block_ptr[i * local_N + j];
+          }
+        }
+      }
     }
 
-    printf("\nProcess 0: allocatiing and initializing matrix C to 0...\n");
-    initialize_matrix_to_zero(&h_C_full, M_A_full, N_B_full, rank);
+    printf("Result\n");
+    for (i = 0; i < M; i++) {
+      for (j = 0; j < N; j++) {
+        printf("%8.2f ", C[i * N + j]);
+      }
+      printf("\n");
+    }
   }
+
+  free(A);
+  free(B);
+  free(C);
+
+  if (rank == 0)
+    free(all_C_blocks);
 
   MPI_Finalize();
   return 0;
