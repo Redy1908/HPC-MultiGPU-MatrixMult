@@ -27,19 +27,6 @@ int main(int argc, char *argv[]) {
   period[1] = 1;
   MPI_Cart_create(MPI_COMM_WORLD, 2, dims, period, 0, &grid_comm);
 
-  /*---------------------------------------------------------------------------------------
-   * ATTUALE: OGNI PROCESSO ALLOCA LE 3 MATRICI CON LA DIMENSIONE GLOBALE (INTERE) MA NE INIZIALIZZA
-   *          ESCLUSIVAMENTE LA SUE PORZIONI SECONDO SUMMA
-   *
-   * TODO: 2 POSSIBILI APPROCCI:
-   *  1) IL PROCESSO ZERO LEGGE DA FILE LE DIMENSIONI ED IL CONTENUTO DELLE MATRICI A e B ALLOCA
-   *     ED INIZIALIZZA A ZERO LA MATRICE C IN FINE DISTRIBUISCE LE MATRICI SECONDO SUMMA
-   *
-   *  2) OGNI PROCESSO LEGGE LA SUA SOTTO MATRICE A E B DA FILE NON E NECESSARIA LA DIVISIONE
-   *     SECONDO SUMMA SIMILE ALL'APPROCCIO ATTUALE SOLO CON LETTURA DA FILE
-   */
-
-  // AL MOMENTO DIMENSIONI DELLA MATICI FISSE
   M = 2;
   K = 4;
   N = 4;
@@ -85,7 +72,6 @@ int main(int argc, char *argv[]) {
       C[i * N + j] = 0.0;
     }
   }
-  //--------------------------------------------------------------------------------------
 
   cudaDeviceProp prop = set_gpu_and_get_properties(rank);
 
@@ -95,7 +81,6 @@ int main(int argc, char *argv[]) {
 
   SUMMA(grid_comm, A, B, C, M, K, N, tile_width, rank);
 
-  // RICOSTRUZIONE DI C CON TUTTI I RISULTATI PARZIALI
   MPI_Gather(C, block_size_elements, MPI_DOUBLE,
              all_C_blocks, block_size_elements, MPI_DOUBLE,
              0, MPI_COMM_WORLD);
