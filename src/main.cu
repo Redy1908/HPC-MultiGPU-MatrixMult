@@ -102,11 +102,11 @@ int main(int argc, char *argv[]) {
 
   if (rank == 0) {
     for (int p_rank = 0; p_rank < size; p_rank++) {
-      int p_coord[2];
-      MPI_Cart_coords(grid_comm, p_rank, 2, p_coord);
+      int p_coord_row = p_rank / dims[1];
+      int p_coord_col = p_rank % dims[1];
 
-      int start_row_global = p_coord[0] * local_M;
-      int start_col_global = p_coord[1] * local_N;
+      int start_row_global = p_coord_row * local_M;
+      int start_col_global = p_coord_col * local_N;
 
       double *source_block_ptr = all_C_blocks + p_rank * block_size_elements;
 
@@ -125,7 +125,7 @@ int main(int argc, char *argv[]) {
     printf("Result\n");
     for (i = 0; i < M; i++) {
       for (j = 0; j < N; j++) {
-        printf("%8.2f ", C[i * N + j]);
+        printf("%lf ", C[i * N + j]);
       }
       printf("\n");
     }
