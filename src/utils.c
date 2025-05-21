@@ -1,9 +1,8 @@
-#include <sys/time.h>
-
 #include "utils.h"
 
-int find_lcm(int a, int b) {
+#include <sys/time.h>
 
+int find_lcm(int a, int b) {
   int q, r;
   int x = a;
   int y = b;
@@ -19,7 +18,6 @@ int find_lcm(int a, int b) {
 }
 
 void initialize_matrix_from_file(const char *file, double **matrix, int *rows, int *cols, int rank) {
-
   FILE *fp = fopen(file, "rb");
   if (fp == NULL) {
     fprintf(stderr, "Rank %d: Error opening fp for reading: %s\n", rank, file);
@@ -84,7 +82,6 @@ void initialize_matrix_to_zero(double **matrix_ptr, int rows, int cols, int rank
 }
 
 double get_cur_time() {
-
   struct timeval tv;
   double cur_time;
 

@@ -1,4 +1,5 @@
 #include <math.h>
+
 #include "functions.cuh"
 #include "utils.h"
 
@@ -24,9 +25,7 @@ cudaDeviceProp set_gpu_and_get_properties(int rank) {
 }
 
 void check_threads_per_block(cudaDeviceProp prop, int tile_width, int rank) {
-
   if (rank == 0) {
-
     int threads_per_block = tile_width * tile_width;
 
     if (threads_per_block > prop.maxThreadsPerBlock) {
@@ -39,7 +38,6 @@ void check_threads_per_block(cudaDeviceProp prop, int tile_width, int rank) {
 }
 
 void check_shared_memory_usage(cudaDeviceProp prop, int tile_width, int rank) {
-
   if (rank == 0) {
     int threads_per_block = tile_width * tile_width;
 
@@ -55,7 +53,6 @@ void check_shared_memory_usage(cudaDeviceProp prop, int tile_width, int rank) {
 }
 
 void SUMMA(MPI_Comm grid_comm, double *A, double *B, double *C_host_block, int M, int K, int N, int tile_width, int rank) {
-
   int dims[2], periods[2], coords[2];
   int i, j, k, c, r, K2;
 
@@ -166,7 +163,6 @@ void SUMMA(MPI_Comm grid_comm, double *A, double *B, double *C_host_block, int M
  * K Number of columns in matrix A and number of rows in matrix B.
  */
 __global__ void matrix_mul_kernel(double *A, double *B, double *C, int M, int N, int K) {
-
   extern __shared__ double shared_mem[];
 
   int tile_width = blockDim.x;
@@ -198,7 +194,7 @@ __global__ void matrix_mul_kernel(double *A, double *B, double *C, int M, int N,
     __syncthreads();
 
     for (int k = 0; k < tile_width; ++k) {
-        c_value += s_A[ty * tile_width + k] * s_B[k * tile_width + tx];
+      c_value += s_A[ty * tile_width + k] * s_B[k * tile_width + tx];
     }
     __syncthreads();
   }

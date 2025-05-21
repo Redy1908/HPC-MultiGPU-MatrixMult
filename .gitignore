@@ -2,8 +2,6 @@
 
 .idea
 
-.clang-format
-
 bin/*
 
 !bin/.gitkeep

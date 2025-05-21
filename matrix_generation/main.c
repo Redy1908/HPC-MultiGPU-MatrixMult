@@ -35,7 +35,6 @@ void write_matrix_to_file(const char *filename, double *matrix, int rows, int co
 }
 
 int main() {
-
   double *A, *B;
   int M_A, K_A, K_B, N_B;
   int debug_mode = 0;

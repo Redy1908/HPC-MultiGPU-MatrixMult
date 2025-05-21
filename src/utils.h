@@ -1,9 +1,9 @@
 #ifndef UTILS_H
 #define UTILS_H
 
+#include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <mpi.h>   
 
 #ifdef __cplusplus
 extern "C" {

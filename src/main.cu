@@ -2,7 +2,6 @@
 #include "utils.h"
 
 int main(int argc, char *argv[]) {
-
   int i, j, M, K, N;
   double *A, *B, *C, *all_C_blocks;
   int dims[2], period[2], coord[2], rank, size;
@@ -89,7 +88,7 @@ int main(int argc, char *argv[]) {
   //--------------------------------------------------------------------------------------
 
   cudaDeviceProp prop = set_gpu_and_get_properties(rank);
-  
+
   int tile_width = 32;
   check_threads_per_block(prop, tile_width, rank);
   check_shared_memory_usage(prop, tile_width, rank);
