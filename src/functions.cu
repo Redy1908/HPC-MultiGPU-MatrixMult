@@ -1,4 +1,6 @@
+#include <common_functions.h>
 #include <math.h>
+#include <stdlib.h>
 
 #include "functions.cuh"
 #include "utils.h"
@@ -52,97 +54,92 @@ void check_shared_memory_usage(cudaDeviceProp prop, int tile_width, int rank) {
   }
 }
 
-void SUMMA(MPI_Comm grid_comm, double *A, double *B, double *C_host_block, int M, int K, int N, int tile_width, int rank) {
+int SUMMA(MPI_Comm grid_comm, double *A, double *B, double *C, uint m, uint k, uint n, dim3 grid_size, dim3 block_size) {
   int dims[2], periods[2], coords[2];
-  int i, j, k, c, r, K2;
-
-  int block_rows_A, block_rows_B;
-  int block_cols_A, block_cols_B;
-
-  double *A_col_host, *B_row_host, *A_start, *B_start;
-  double *d_A_col, *d_B_row, *d_C_block;
-
-  MPI_Comm row_comm, col_comm;
-
-  int remain_dims_row[2] = {0, 1};
-  int remain_dims_col[2] = {1, 0};
-
   MPI_Cart_get(grid_comm, 2, dims, periods, coords);
 
-  K2 = find_lcm(dims[0], dims[1]);
+  int K2 = find_lcm(dims[0], dims[1]);
 
-  block_rows_A = M / dims[0];
-  block_rows_B = K / K2;
-  block_cols_A = K / K2;
-  block_cols_B = N / dims[1];
+  uint a_block_height = m / dims[0];
+  uint a_block_width = k / K2;
 
-  A_col_host = (double *)malloc(block_rows_A * block_cols_A * sizeof(double));
-  MALLOC_CHECK(A_col_host, rank, "A_col_host");
+  uint b_block_height = a_block_width;
+  uint b_block_width = n / dims[1];
 
-  B_row_host = (double *)malloc(block_rows_B * block_cols_B * sizeof(double));
-  MALLOC_CHECK(B_row_host, rank, "B_row_host");
+  double *a_block = (double *)malloc(a_block_height * a_block_width * sizeof(double));
+  double *b_block = (double *)malloc(b_block_height * b_block_width * sizeof(double));
 
-  CUDA_CHECK(cudaMalloc((void **)&d_A_col, block_rows_A * block_cols_A * sizeof(double)), rank);
-  CUDA_CHECK(cudaMalloc((void **)&d_B_row, block_rows_B * block_cols_B * sizeof(double)), rank);
-  CUDA_CHECK(cudaMalloc((void **)&d_C_block, block_rows_A * block_cols_B * sizeof(double)), rank);
+  double *A_dev, *B_dev, *C_dev;
+  cudaMalloc(&A_dev, a_block_height * a_block_width * sizeof(double));
+  cudaMalloc(&B_dev, b_block_height * b_block_width * sizeof(double));
+  cudaMalloc(&C_dev, a_block_height * b_block_width * sizeof(double));
 
-  CUDA_CHECK(cudaMemset(d_C_block, 0, block_rows_A * block_cols_B * sizeof(double)), rank);
+  if (a_block == NULL || b_block == NULL || A_dev == NULL || B_dev == NULL || C_dev == NULL) {
+    cudaFree(A_dev);
+    cudaFree(B_dev);
+    cudaFree(C_dev);
 
+    free(a_block);
+    free(b_block);
+
+    return 1;
+  }
+
+  /* create communicators along rows and columns */
+  int remain_dims_row[2] = {0, 1};
+  int remain_dims_col[2] = {1, 0};
+  MPI_Comm row_comm, col_comm;
   MPI_Cart_sub(grid_comm, remain_dims_row, &row_comm);
   MPI_Cart_sub(grid_comm, remain_dims_col, &col_comm);
 
-  A_start = A;
-  B_start = B;
+  double *A_start = A;
+  double *B_start = B;
 
-  for (k = 0; k < K2; k++) {
-    c = k % dims[1];
-    r = k % dims[0];
+  for (uint i = 0; i < K2; i++) {
+    uint r = i % dims[0];
+    uint c = i % dims[1];
 
     if (coords[1] == c) {
-      for (i = 0; i < block_rows_A; i++) {
-        for (j = 0; j < block_cols_A; j++) {
-          A_col_host[i * block_cols_A + j] = A_start[i * K + j];
-        }
-      }
-      A_start += block_cols_A;
+      for (uint j = 0; j < a_block_height; j++)
+        memcpy(a_block + j * a_block_width, A_start + j * i, a_block_width * sizeof(double));
+
+      A_start += a_block_width;
     }
 
     if (coords[0] == r) {
-      for (i = 0; i < block_rows_B; i++) {
-        for (j = 0; j < block_cols_B; j++) {
-          B_row_host[i * block_cols_B + j] = B_start[i * N + j];
-        }
-      }
-      B_start += block_cols_B * N;
+      for (uint j = 0; j < b_block_height; j++)
+        memcpy(b_block + j * b_block_width, A_start + j * i, b_block_width * sizeof(double));
+
+      B_start += b_block_width * n;
     }
 
-    MPI_Bcast(A_col_host, block_rows_A * block_cols_A, MPI_DOUBLE, c, row_comm);
-    MPI_Bcast(B_row_host, block_rows_B * block_cols_B, MPI_DOUBLE, r, col_comm);
+    MPI_Bcast(a_block, a_block_height * a_block_width, MPI_DOUBLE, c, row_comm);
+    MPI_Bcast(b_block, b_block_height * b_block_width, MPI_DOUBLE, r, col_comm);
 
-    CUDA_CHECK(cudaMemcpy(d_A_col, A_col_host, block_rows_A * block_cols_A * sizeof(double), cudaMemcpyHostToDevice), rank);
-    CUDA_CHECK(cudaMemcpy(d_B_row, B_row_host, block_rows_B * block_cols_B * sizeof(double), cudaMemcpyHostToDevice), rank);
-
-    dim3 dim_block(tile_width, tile_width, 1);
-    dim3 dim_grid(ceil(block_cols_B / (float)tile_width), ceil(block_rows_A / (float)tile_width), 1);
-    int shared_mem_size = 2 * tile_width * tile_width * sizeof(double);
-
-    matrix_mul_kernel<<<dim_grid, dim_block, shared_mem_size>>>(d_A_col, d_B_row, d_C_block, block_rows_A, block_cols_B, block_cols_A);
-
-    CUDA_CHECK(cudaGetLastError(), rank);
-    CUDA_CHECK(cudaDeviceSynchronize(), rank);
+    /* compute submatrix multiplication on the GPU */
+    uint shared_mem_size = 2 * block_size.x * block_size.y * sizeof(double);
+    cudaMemcpy(A_dev, a_block, a_block_height * a_block_width * sizeof(double), cudaMemcpyHostToDevice);
+    cudaMemcpy(B_dev, b_block, b_block_height * b_block_width * sizeof(double), cudaMemcpyHostToDevice);
+    matrix_mul_kernel<<<grid_size, block_size, shared_mem_size>>>(A_dev, B_dev, C_dev, a_block_height, b_block_width, a_block_width);
+    cudaDeviceSynchronize(); /* TODO: is this needed? */
   }
 
-  CUDA_CHECK(cudaMemcpy(C_host_block, d_C_block, block_rows_A * block_cols_B * sizeof(double), cudaMemcpyDeviceToHost), rank);
+  /* copy the final result from the GPU to the CPU */
+  cudaDeviceSynchronize();
+  cudaMemcpy(C, C_dev, a_block_height * b_block_width * sizeof(double), cudaMemcpyDeviceToHost);
 
+  /* cleanup */
   MPI_Comm_free(&row_comm);
   MPI_Comm_free(&col_comm);
 
-  free(A_col_host);
-  free(B_row_host);
+  cudaFree(A_dev);
+  cudaFree(B_dev);
+  cudaFree(C_dev);
 
-  CUDA_CHECK(cudaFree(d_A_col), rank);
-  CUDA_CHECK(cudaFree(d_B_row), rank);
-  CUDA_CHECK(cudaFree(d_C_block), rank);
+  free(a_block);
+  free(b_block);
+
+  return 0;
 }
 
 /**
