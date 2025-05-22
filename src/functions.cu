@@ -115,7 +115,7 @@ int SUMMA(MPI_Comm grid_comm, double *A, double *B, double *C, uint m, uint k, u
 
     if (coords[0] == sending_process_row) {
       block_b = B;        /* we are sending the block */
-      B += sub_k * sub_m; /* we may have to send again in the future, skip the pointer to the start of the other block */
+      B += sub_k * sub_n; /* we may have to send again in the future, skip the pointer to the start of the other block */
     } else {
       block_b = buffer_b; /* we are receiving, prepare the buffer */
     }
