@@ -58,7 +58,6 @@ void initialize_matrix_from_file(const char *file, double **matrix, int *rows, i
   }
 
   fclose(fp);
-  printf("Successfully read matrix from %s (%d x %d)\n", file, *rows, *cols);
 }
 
 void initialize_matrix_to_zero(double **matrix_ptr, int rows, int cols, int rank) {
@@ -78,7 +77,6 @@ void initialize_matrix_to_zero(double **matrix_ptr, int rows, int cols, int rank
   }
 
   *matrix_ptr = matrix;
-  printf("Rank %d: Successfully initialized matrix to zero (%d x %d)\n", rank, rows, cols);
 }
 
 double get_cur_time() {
