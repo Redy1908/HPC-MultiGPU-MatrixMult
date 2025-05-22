@@ -3,14 +3,16 @@
 #include <time.h>
 
 void generate_matrix(double **matrix_ptr, int rows, int cols, int debug_mode) {
+  int i, j;
+
   *matrix_ptr = (double *)malloc(rows * cols * sizeof(double));
   if (*matrix_ptr == NULL) {
     fprintf(stderr, "Memory allocation failed in generate_random_matrix\n");
     exit(EXIT_FAILURE);
   }
 
-  for (int i = 0; i < rows; i++) {
-    for (int j = 0; j < cols; j++) {
+  for (i = 0; i < rows; i++) {
+    for (j = 0; j < cols; j++) {
       if (debug_mode) {
         (*matrix_ptr)[i * cols + j] = 2.0;
       } else {

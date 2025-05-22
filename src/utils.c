@@ -61,6 +61,8 @@ void initialize_matrix_from_file(const char *file, double **matrix, int *rows, i
 }
 
 void initialize_matrix_to_zero(double **matrix_ptr, int rows, int cols, int rank) {
+  int i;
+
   if (rows <= 0 || cols <= 0) {
     fprintf(stderr, "Rank %d: Invalid matrix dimensions: %d x %d\n", rank, rows, cols);
     MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
@@ -72,7 +74,7 @@ void initialize_matrix_to_zero(double **matrix_ptr, int rows, int cols, int rank
     MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
   }
 
-  for (int i = 0; i < rows * cols; i++) {
+  for (i = 0; i < rows * cols; i++) {
     matrix[i] = 0.0;
   }
 
