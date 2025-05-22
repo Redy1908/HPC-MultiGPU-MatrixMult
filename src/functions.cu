@@ -60,27 +60,25 @@ int SUMMA(MPI_Comm grid_comm, double *A, double *B, double *C, uint m, uint k, u
 
   int K2 = find_lcm(dims[0], dims[1]);
 
-  uint a_block_height = m / dims[0];
-  uint a_block_width = k / K2;
+  uint sub_m = m / dims[0] + (m % dims[0] < coords[0]); /* numbers of row for the A sub-block */
+  uint sub_n = n / dims[1] + (n % dims[1] < coords[1]); /* numbers of columns for the B sub-block */
+  uint max_sub_k = k / K2 + (k % K2 > 0);
 
-  uint b_block_height = a_block_width;
-  uint b_block_width = n / dims[1];
-
-  double *a_block = (double *)malloc(a_block_height * a_block_width * sizeof(double));
-  double *b_block = (double *)malloc(b_block_height * b_block_width * sizeof(double));
+  double *buffer_a = (double *)malloc(sub_m * max_sub_k * sizeof(double));
+  double *buffer_b = (double *)malloc(max_sub_k * sub_n * sizeof(double));
 
   double *A_dev, *B_dev, *C_dev;
-  cudaMalloc(&A_dev, a_block_height * a_block_width * sizeof(double));
-  cudaMalloc(&B_dev, b_block_height * b_block_width * sizeof(double));
-  cudaMalloc(&C_dev, a_block_height * b_block_width * sizeof(double));
+  cudaMalloc(&A_dev, sub_m * max_sub_k * sizeof(double));
+  cudaMalloc(&B_dev, max_sub_k * sub_n * sizeof(double));
+  cudaMalloc(&C_dev, sub_m * sub_n * sizeof(double));
 
-  if (a_block == NULL || b_block == NULL || A_dev == NULL || B_dev == NULL || C_dev == NULL) {
+  if (buffer_a == NULL || buffer_b == NULL || A_dev == NULL || B_dev == NULL || C_dev == NULL) {
     cudaFree(A_dev);
     cudaFree(B_dev);
     cudaFree(C_dev);
 
-    free(a_block);
-    free(b_block);
+    free(buffer_a);
+    free(buffer_b);
 
     return 1;
   }
@@ -92,41 +90,53 @@ int SUMMA(MPI_Comm grid_comm, double *A, double *B, double *C, uint m, uint k, u
   MPI_Cart_sub(grid_comm, remain_dims_row, &row_comm);
   MPI_Cart_sub(grid_comm, remain_dims_col, &col_comm);
 
-  double *A_start = A;
-  double *B_start = B;
-
   for (uint i = 0; i < K2; i++) {
-    uint r = i % dims[0];
-    uint c = i % dims[1];
+    uint sending_process_row = i % dims[0];
+    uint sending_process_column = i % dims[1];
 
-    if (coords[1] == c) {
-      for (uint j = 0; j < a_block_height; j++)
-        memcpy(a_block + j * a_block_width, A_start + j * i, a_block_width * sizeof(double));
+    /* calculate the k of the sending process */
+    uint sub_k = k / K2 + (k % K2 < sending_process_column);
 
-      A_start += a_block_width;
+    /**
+     * NOTE 2025-05-22 (Salvatore)
+     * the following assumes that blocks assigned to the process are stored contiguosly one after the other and NOT interleaved
+     * wrong format: row 0 of block 0, row 0 of block 1, row 1 of block 0, row 1 of block 1, ...
+     * correct format: row 0 of block 0, row 1 of block 0, row n of block 0, row 0 of block 1, ...
+     */
+
+    double *block_a, *block_b;
+
+    if (coords[1] == sending_process_column) {
+      block_a = A;        /* we are sending the block */
+      A += sub_m * sub_k; /* we may have to send again in the future, skip the pointer to the start of the other block */
+    } else {
+      block_a = buffer_a; /* we are receiving, prepare the buffer */
     }
 
-    if (coords[0] == r) {
-      for (uint j = 0; j < b_block_height; j++)
-        memcpy(b_block + j * b_block_width, A_start + j * i, b_block_width * sizeof(double));
-
-      B_start += b_block_width * n;
+    if (coords[0] == sending_process_row) {
+      block_b = B;        /* we are sending the block */
+      B += sub_k * sub_m; /* we may have to send again in the future, skip the pointer to the start of the other block */
+    } else {
+      block_b = buffer_b; /* we are receiving, prepare the buffer */
     }
 
-    MPI_Bcast(a_block, a_block_height * a_block_width, MPI_DOUBLE, c, row_comm);
-    MPI_Bcast(b_block, b_block_height * b_block_width, MPI_DOUBLE, r, col_comm);
+    /* a process broadcasts one of its blocks of A on all the other processes in the same row */
+    MPI_Bcast(block_a, sub_m * sub_k, MPI_DOUBLE, sending_process_column, row_comm);
+
+    /* a process broadcasts one of its blocks of B on all the other processes in the same column */
+    MPI_Bcast(block_b, sub_k * sub_n, MPI_DOUBLE, sending_process_row, col_comm);
 
     /* compute submatrix multiplication on the GPU */
-    uint shared_mem_size = 2 * block_size.x * block_size.y * sizeof(double);
-    cudaMemcpy(A_dev, a_block, a_block_height * a_block_width * sizeof(double), cudaMemcpyHostToDevice);
-    cudaMemcpy(B_dev, b_block, b_block_height * b_block_width * sizeof(double), cudaMemcpyHostToDevice);
-    matrix_mul_kernel<<<grid_size, block_size, shared_mem_size>>>(A_dev, B_dev, C_dev, a_block_height, b_block_width, a_block_width);
+    uint shared_mem_size = (sub_m * sub_k + sub_k * sub_n) * sizeof(double);
+    cudaMemcpy(A_dev, block_a, sub_m * sub_k * sizeof(double), cudaMemcpyHostToDevice);
+    cudaMemcpy(B_dev, block_b, sub_k * sub_n * sizeof(double), cudaMemcpyHostToDevice);
+    matrix_mul_kernel<<<grid_size, block_size, shared_mem_size>>>(A_dev, B_dev, C_dev, sub_m, sub_n, sub_k);
     cudaDeviceSynchronize(); /* TODO: is this needed? */
   }
 
   /* copy the final result from the GPU to the CPU */
   cudaDeviceSynchronize();
-  cudaMemcpy(C, C_dev, a_block_height * b_block_width * sizeof(double), cudaMemcpyDeviceToHost);
+  cudaMemcpy(C, C_dev, sub_m * sub_n * sizeof(double), cudaMemcpyDeviceToHost);
 
   /* cleanup */
   MPI_Comm_free(&row_comm);
@@ -136,8 +146,8 @@ int SUMMA(MPI_Comm grid_comm, double *A, double *B, double *C, uint m, uint k, u
   cudaFree(B_dev);
   cudaFree(C_dev);
 
-  free(a_block);
-  free(b_block);
+  free(buffer_a);
+  free(buffer_b);
 
   return 0;
 }
