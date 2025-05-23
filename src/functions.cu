@@ -203,6 +203,13 @@ __global__ void matrix_mul_kernel(double *A, double *B, double *C, int M, int N,
     C[row * N + col] += c_value;
 }
 
+void read_matrix_dimensions(const char *filename, int *rows, int *cols, int rank) {
+    MPI_File file;
+    MPI_File_open(MPI_COMM_WORLD, filename, MPI_MODE_RDONLY, MPI_INFO_NULL, &file);
+    MPI_File_read_at(file, 0, rows, 1, MPI_INT, MPI_STATUS_IGNORE);
+    MPI_File_read_at(file, sizeof(int), cols, 1, MPI_INT, MPI_STATUS_IGNORE);
+    MPI_File_close(&file);
+}
 
 // Legge blocco locale della matrice A (M x K)
 // Blocchi: righe in base a dims[0], colonne in base a lcm(dims[0], dims[1])
@@ -217,7 +224,8 @@ void read_matrix_A_block(const char *filename, double **A, int M, int K, int loc
 
     // Calcolo offset: righe da proc_row * local_M, colonne da (proc_row * dims[1] + proc_col) * local_K
     // Ma qui leggiamo tutto il blocco locale come blocco contiguo in row-major
-    offset = (MPI_Offset)(proc_row * local_M * K + 0) * sizeof(double);
+    MPI_Offset data_offset = 2 * sizeof(int);  // salto header (dimensioni)
+    offset = data_offset + (MPI_Offset)(proc_row * local_M * K) * sizeof(double);
 
     for (int i = 0; i < local_M; ++i) {
         MPI_File_read_at(file,
@@ -251,7 +259,7 @@ void read_matrix_B_block(const char *filename, double **B, int K, int N, int loc
     MPI_Type_commit(&filetype);
 
     MPI_File_open(MPI_COMM_WORLD, filename, MPI_MODE_RDONLY, MPI_INFO_NULL, &file);
-    MPI_File_set_view(file, 0, MPI_DOUBLE, filetype, "native", MPI_INFO_NULL);
+    MPI_File_set_view(file, 2 * sizeof(int), MPI_DOUBLE, filetype, "native", MPI_INFO_NULL);
     MPI_File_read_all(file, *B, local_K * local_N, MPI_DOUBLE, MPI_STATUS_IGNORE);
 
     MPI_File_close(&file);

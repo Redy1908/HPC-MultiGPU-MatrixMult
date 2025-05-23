@@ -29,9 +29,14 @@ int main(int argc, char *argv[]) {
   MPI_Cart_create(MPI_COMM_WORLD, 2, dims, period, 0, &grid_comm);
   MPI_Cart_coords(grid_comm, rank, 2, coord);
 
-  M = 2;
-  K = 4;
-  N = 4;
+  if (rank == 0) {
+      read_matrix_dimensions("inputs/A.bin", &M, &K, rank);
+      read_matrix_dimensions("inputs/B.bin", &K, &N, rank);
+  }
+  MPI_Bcast(&M, 1, MPI_INT, 0, MPI_COMM_WORLD);
+  MPI_Bcast(&K, 1, MPI_INT, 0, MPI_COMM_WORLD);
+  MPI_Bcast(&N, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
 
   int lcm = find_lcm(dims[0], dims[1]);
 
