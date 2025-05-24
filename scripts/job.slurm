@@ -14,6 +14,6 @@
 MPI_INCLUDE_PATH="/usr/mpi/gcc/openmpi-4.1.0rc5/include"
 MPI_LIB_PATH="/usr/mpi/gcc/openmpi-4.1.0rc5/lib64"
 
-nvcc src/main.cu src/functions.cu src/utils.c -o bin/main_matmul.out -I"$MPI_INCLUDE_PATH" -L"$MPI_LIB_PATH" -Isrc -lcudart -lmpi
+nvcc src/main.cu src/functions.cu src/utils.c src/phpc_matrix_operations.cu -o bin/main_matmul.out -I"$MPI_INCLUDE_PATH" -L"$MPI_LIB_PATH" -Isrc -lcudart -lmpi
 
 srun --mpi=pmix_v3 bash -c 'export CUDA_VISIBLE_DEVICES=$SLURM_LOCALID; exec bin/main_matmul.out'

@@ -2,7 +2,7 @@
 #include <mpi/mpi.h>
 #include <stdlib.h>
 
-#include "matrix_operations.cuh"
+#include "phpc_matrix_operations.cuh"
 
 #define IDX(row, col, num_cols) ((row) * (num_cols) + (col))
 
@@ -61,7 +61,7 @@ __global__ void gemm_kernel(double *A, double *B, double *C, unsigned int m, uns
     C[row * n + col] += c_value;
 }
 
-int gemm_sequential(const double *A, const double *B, double *C, unsigned int m, unsigned int k, unsigned int n) {
+int phpc_gemm_sequential(const double *A, const double *B, double *C, unsigned int m, unsigned int k, unsigned int n) {
   for (unsigned int i = 0; i < m; ++i)
     for (unsigned int j = 0; j < n; ++j)
       for (unsigned int l = 0; l < k; ++l)
@@ -70,7 +70,7 @@ int gemm_sequential(const double *A, const double *B, double *C, unsigned int m,
   return 0;
 }
 
-int gemm_cuda(const double *A, const double *B, double *C, unsigned int m, unsigned int k, unsigned int n, dim2 grid_size, dim2 block_size) {
+int phpc_gemm_cuda(const double *A, const double *B, double *C, unsigned int m, unsigned int k, unsigned int n, dim2 grid_size, dim2 block_size) {
   double *A_dev, *B_dev, *C_dev;
   cudaMalloc(&A_dev, m * k * sizeof(double));
   cudaMalloc(&B_dev, k * n * sizeof(double));
@@ -102,7 +102,7 @@ int gemm_cuda(const double *A, const double *B, double *C, unsigned int m, unsig
   return 0;
 }
 
-int gemm_summa_sequential(const MPI_Comm grid_comm, double *A, double *B, double *C, unsigned int m, unsigned int k, unsigned int n) {
+int phpc_gemm_summa_sequential(const MPI_Comm grid_comm, double *A, double *B, double *C, unsigned int m, unsigned int k, unsigned int n) {
   int rank;
   int dims[2], periods[2], coords[2];
 
@@ -167,7 +167,7 @@ int gemm_summa_sequential(const MPI_Comm grid_comm, double *A, double *B, double
     /* a process broadcasts one of its blocks of B on all the other processes in the same column */
     MPI_Bcast(block_b, sub_k * sub_n, MPI_DOUBLE, r, col_comm);
 
-    gemm_sequential(block_a, block_b, C, sub_m, sub_k, sub_n);
+    phpc_gemm_sequential(block_a, block_b, C, sub_m, sub_k, sub_n);
   }
 
   MPI_Comm_free(&row_comm);
@@ -179,7 +179,7 @@ int gemm_summa_sequential(const MPI_Comm grid_comm, double *A, double *B, double
   return 0;
 }
 
-int gemm_summa_cuda(const MPI_Comm grid_comm, double *A, double *B, double *C, unsigned int m, unsigned int k, unsigned int n, dim2 grid_size, dim2 block_size) {
+int phpc_gemm_summa_cuda(const MPI_Comm grid_comm, double *A, double *B, double *C, unsigned int m, unsigned int k, unsigned int n, dim2 grid_size, dim2 block_size) {
   int rank;
   int dims[2], periods[2], coords[2];
 
