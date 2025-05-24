@@ -1,3 +1,5 @@
+#include <string.h>
+
 #include "functions.cuh"
 #include "phpc_matrix_operations.cuh"
 #include "utils.h"
@@ -57,6 +59,7 @@ int main(int argc, char *argv[]) {
 
   read_matrix_A_block("inputs/A.bin", &A, M, K, local_M, local_K, coord[0], lcm, rank);
   read_matrix_B_block("inputs/B.bin", &B, K, N, local_K, local_N, coord[1], lcm, rank);
+  memset(C, 0, sizeof(double) * M * N);
 
   cudaDeviceProp prop = set_gpu_and_get_properties(rank);
 
@@ -64,7 +67,6 @@ int main(int argc, char *argv[]) {
   check_threads_per_block(prop, tile_width, rank);
   check_shared_memory_usage(prop, tile_width, rank);
 
-  // SUMMA(grid_comm, A, B, C, M, K, N, tile_width, rank);
   dim2 grid_size(1, 1);
   dim2 block_size(4, 4);
   phpc_gemm_summa_cuda(grid_comm, A, B, C, M, K, N, grid_size, block_size);

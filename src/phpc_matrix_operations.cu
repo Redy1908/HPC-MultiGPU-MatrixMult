@@ -86,7 +86,7 @@ int phpc_gemm_cuda(const double *A, const double *B, double *C, unsigned int m, 
   uint shared_mem_size = (m * k + k * n) * sizeof(double);
   cudaMemcpy(A_dev, A, m * k * sizeof(double), cudaMemcpyHostToDevice);
   cudaMemcpy(B_dev, B, k * n * sizeof(double), cudaMemcpyHostToDevice);
-  cudaMemset(C_dev, 0, m * n * sizeof(double));
+  cudaMemcpy(C_dev, C, m * n * sizeof(double), cudaMemcpyHostToDevice);
 
   dim3 kernel_grid_size(grid_size.x, grid_size.y, 1);
   dim3 kernel_block_size(block_size.x, block_size.y, 1);
@@ -167,6 +167,7 @@ int phpc_gemm_summa_sequential(const MPI_Comm grid_comm, double *A, double *B, d
     /* a process broadcasts one of its blocks of B on all the other processes in the same column */
     MPI_Bcast(block_b, sub_k * sub_n, MPI_DOUBLE, r, col_comm);
 
+    /* compute the submatrices product */
     phpc_gemm_sequential(block_a, block_b, C, sub_m, sub_k, sub_n);
   }
 
@@ -208,6 +209,9 @@ int phpc_gemm_summa_cuda(const MPI_Comm grid_comm, double *A, double *B, double 
     free(buffer_b);
     return 1;
   }
+
+  /* copy result matrix to GPU */
+  cudaMemcpy(C_dev, C, m * n * sizeof(double), cudaMemcpyHostToDevice);
 
   /* create communicators along rows and columns */
   int remain_dims_row[2] = {0, 1};
@@ -256,7 +260,7 @@ int phpc_gemm_summa_cuda(const MPI_Comm grid_comm, double *A, double *B, double 
     cudaMemcpy(A_dev, block_a, sub_m * sub_k * sizeof(double), cudaMemcpyHostToDevice);
     cudaMemcpy(B_dev, block_b, sub_k * sub_n * sizeof(double), cudaMemcpyHostToDevice);
 
-    /* execute product on the GPU */
+    /* compute product on the GPU */
     uint shared_mem_size = (sub_m * sub_n * 2) * sizeof(double);
     dim3 kernel_grid_size(grid_size.x, grid_size.y, 1);
     dim3 kernel_block_size(block_size.x, block_size.y, 1);
