@@ -25,6 +25,9 @@ void check_threads_per_block(cudaDeviceProp prop, int tile_width, int rank);
 void check_shared_memory_usage(cudaDeviceProp prop, int tile_width, int rank);
 
 int SUMMA(MPI_Comm grid_comm, double *A, double *B, double *C, uint m, uint k, uint n, dim3 grid_size, dim3 block_size);
+void read_matrix_A_block(const char *filename, double **A, int M, int K, int local_M, int local_K, int proc_row, int lcm, int rank);
+void read_matrix_dimensions(const char *filename, int *rows, int *cols, int rank);
+void read_matrix_B_block(const char *filename, double **B, int K, int N, int local_K, int local_N, int proc_col, int lcm, int rank);
 
 __global__ void matrix_mul_kernel(double *A, double *B, double *C, int M, int N, int K);
 

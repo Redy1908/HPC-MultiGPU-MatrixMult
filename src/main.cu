@@ -29,42 +29,8 @@ int main(int argc, char *argv[]) {
   MPI_Cart_create(MPI_COMM_WORLD, 2, dims, period, 0, &grid_comm);
   MPI_Cart_coords(grid_comm, rank, 2, coord);
 
-  /* INIZIALIZZAZIONE MATRICI DA FILE
-    if (rank == 0) {
-        printf("RANK 0: Reading matrix A from file...\n");
-        initialize_matrix_from_file("inputs/A.bin", &h_full_A, &global_M, &global_A_K, rank);
-        printf("RANK 0: Matrix A (%dx%d) read successfully. \n", global_M, global_A_K);
-
-        printf("\nRANK 0: Reading matrix B from file...\n");
-        initialize_matrix_from_file("inputs/B.bin", &h_full_B, &global_B_K, &global_N, rank);
-        printf("RANK 0: Matrix B (%dx%d) read successfully.\n", global_B_K, global_N);
-
-        if (global_A_K != global_B_K) {
-        fprintf(stderr, "Error: Matrix A and B dimensions do not match.\n");
-        free(h_full_A);
-        free(h_full_B);
-        MPI_Finalize();
-        return -1;
-        }
-
-        global_K = global_A_K;
-
-        // we assume that the process grid is squared so lcm(dims[0], dims[1]) = dims[0] = dims[1]
-        if (global_M % dims[0] != 0 || global_K % dims[0] != 0 || global_N % dims[1] != 0) {
-        fprintf(stderr, "Error: Matrix dimensions are not divisible by the grid dimensions.\n");
-        free(h_full_A);
-        free(h_full_B);
-        MPI_Finalize();
-        return -1;
-        }
-
-        initialize_matrix_to_zero(&h_full_C, global_M, global_N, rank);
-    }
-  */
-
-  M = 2;
-  K = 4;
-  N = 4;
+  read_matrix_dimensions("inputs/A.bin", &M, &K, rank);
+  read_matrix_dimensions("inputs/B.bin", &K, &N, rank);
 
   int lcm = find_lcm(dims[0], dims[1]);
 
@@ -88,23 +54,8 @@ int main(int argc, char *argv[]) {
     MALLOC_CHECK(all_C_blocks, rank, "all_C_blocks");
   }
 
-  for (i = 0; i < local_M; i++) {
-    for (j = 0; j < local_K; j++) {
-      A[i * K + j] = coord[0] * dims[1] * local_K + coord[1] * local_K + i * K + j;
-    }
-  }
-
-  for (i = 0; i < local_K; i++) {
-    for (j = 0; j < local_N; j++) {
-      B[i * N + j] = 10 + coord[0] * dims[1] * N + coord[1] * local_N + i * N + j;
-    }
-  }
-
-  for (i = 0; i < local_M; i++) {
-    for (j = 0; j < local_N; j++) {
-      C[i * N + j] = 0.0;
-    }
-  }
+  read_matrix_A_block("inputs/A.bin", &A, M, K, local_M, local_K, coord[0], lcm, rank);
+  read_matrix_B_block("inputs/B.bin", &B, K, N, local_K, local_N, coord[1], lcm, rank);
 
   cudaDeviceProp prop = set_gpu_and_get_properties(rank);
 
