@@ -1,7 +1,7 @@
-#ifndef UTILS_H
-#define UTILS_H
+#ifndef _PHPC_UTILS_H
+#define _PHPC_UTILS_H
 
-#include <mpi.h>
+#include <mpi/mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -16,9 +16,13 @@ extern "C" {
     MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);                                            \
   }
 
+#define MPI_Assert(check, rank)                                                      \
+  if (!(check)) {                                                                    \
+    fprintf(stderr, "Error in %s at line %d (Rank %d)\n", __FILE__, __LINE__, rank); \
+    MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);                                         \
+  }
+
 int find_lcm(int a, int b);
-void initialize_matrix_from_file(const char *file, double **matrix, int *rows, int *cols, int rank);
-void initialize_matrix_to_zero(double **matrix_ptr, int rows, int cols, int rank);
 double get_cur_time();
 
 #ifdef __cplusplus
