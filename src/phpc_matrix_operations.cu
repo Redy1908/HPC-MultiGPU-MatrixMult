@@ -1,3 +1,4 @@
+#include <cublas_v2.h>
 #include <cuda_runtime.h>
 #include <mpi/mpi.h>
 #include <stdlib.h>
@@ -102,6 +103,60 @@ int phpc_gemm_cuda(const double *A, const double *B, double *C, unsigned int m, 
   return 0;
 }
 
+int phpc_gemm_cublas(const double *A, const double *B, double *C, int m, int k, int n) {
+  if (m < 0 || k < 0 || n < 0)
+    return 1;
+
+  double *A_dev, *B_dev, *C_dev;
+
+  if (cudaMalloc(&A_dev, m * k * sizeof(double)) != cudaSuccess)
+    return 1;
+
+  if (cudaMalloc(&B_dev, k * n * sizeof(double)) != cudaSuccess) {
+    cudaFree(A_dev);
+    return 1;
+  }
+
+  if (cudaMalloc(&C_dev, m * n * sizeof(double)) != cudaSuccess) {
+    cudaFree(B_dev);
+    cudaFree(A_dev);
+    return 1;
+  }
+
+  cublasHandle_t handle;
+  if (cublasCreate(&handle) != CUBLAS_STATUS_SUCCESS) {
+    cudaFree(C_dev);
+    cudaFree(B_dev);
+    cudaFree(A_dev);
+    return 1;
+  }
+
+  cudaMemcpy(A_dev, A, m * k * sizeof(double), cudaMemcpyHostToDevice);
+  cudaMemcpy(B_dev, B, k * n * sizeof(double), cudaMemcpyHostToDevice);
+  cudaMemcpy(C_dev, C, m * n * sizeof(double), cudaMemcpyHostToDevice);
+
+  const double alpha = 1;
+  const double beta = 1;
+
+  /* https://stackoverflow.com/a/56064726/17731255 */
+  if (cublasDgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, n, m, k, &alpha, B_dev, n, A_dev, k, &beta, C_dev, n) != CUBLAS_STATUS_SUCCESS) {
+    cublasDestroy(handle);
+    cudaFree(C_dev);
+    cudaFree(B_dev);
+    cudaFree(A_dev);
+    return 1;
+  }
+
+  cudaMemcpy(C, C_dev, m * n * sizeof(double), cudaMemcpyDeviceToHost);
+
+  cublasDestroy(handle);
+  cudaFree(C_dev);
+  cudaFree(B_dev);
+  cudaFree(A_dev);
+
+  return 0;
+}
+
 int phpc_gemm_summa_sequential(const MPI_Comm grid_comm, double *A, double *B, double *C, unsigned int m, unsigned int k, unsigned int n) {
   int rank;
   int dims[2], periods[2], coords[2];
@@ -196,17 +251,35 @@ int phpc_gemm_summa_cuda(const MPI_Comm grid_comm, double *A, double *B, double 
   double *buffer_a = (double *)malloc(sub_m * max_sub_k * sizeof(double));
   double *buffer_b = (double *)malloc(max_sub_k * sub_n * sizeof(double));
 
-  double *A_dev, *B_dev, *C_dev;
-  cudaMalloc(&A_dev, sub_m * max_sub_k * sizeof(double));
-  cudaMalloc(&B_dev, max_sub_k * sub_n * sizeof(double));
-  cudaMalloc(&C_dev, sub_m * sub_n * sizeof(double));
-
-  if (buffer_a == NULL || buffer_b == NULL || A_dev == NULL || B_dev == NULL || C_dev == NULL) {
-    cudaFree(A_dev);
-    cudaFree(B_dev);
-    cudaFree(C_dev);
-    free(buffer_a);
+  if (buffer_a == NULL || buffer_b == NULL) {
     free(buffer_b);
+    free(buffer_a);
+    return 1;
+  }
+
+  double *A_dev, *B_dev, *C_dev;
+
+  if (cudaMalloc(&A_dev, sub_m * max_sub_k * sizeof(double)) != cudaSuccess) {
+    cudaFree(A_dev);
+    free(buffer_b);
+    free(buffer_a);
+    return 1;
+  }
+
+  if (cudaMalloc(&B_dev, max_sub_k * sub_n * sizeof(double)) != cudaSuccess) {
+    cudaFree(B_dev);
+    cudaFree(A_dev);
+    free(buffer_b);
+    free(buffer_a);
+    return 1;
+  }
+
+  if (cudaMalloc(&C_dev, sub_m * sub_n * sizeof(double)) != cudaSuccess) {
+    cudaFree(C_dev);
+    cudaFree(B_dev);
+    cudaFree(A_dev);
+    free(buffer_b);
+    free(buffer_a);
     return 1;
   }
 
@@ -274,13 +347,145 @@ int phpc_gemm_summa_cuda(const MPI_Comm grid_comm, double *A, double *B, double 
   /* cleanup */
   MPI_Comm_free(&row_comm);
   MPI_Comm_free(&col_comm);
-
-  cudaFree(A_dev);
-  cudaFree(B_dev);
   cudaFree(C_dev);
-
-  free(buffer_a);
+  cudaFree(B_dev);
+  cudaFree(A_dev);
   free(buffer_b);
+  free(buffer_a);
+
+  return 0;
+}
+
+int phpc_gemm_summa_cublas(const MPI_Comm grid_comm, double *A, double *B, double *C, int m, int k, int n) {
+  if (m < 0 || k < 0 || n < 0)
+    return 1;
+
+  int rank;
+  int dims[2], periods[2], coords[2];
+
+  MPI_Comm_rank(grid_comm, &rank);
+  MPI_Cart_get(grid_comm, 2, dims, periods, coords);
+
+  int K2 = find_lcm(dims[0], dims[1]);
+
+  uint sub_m = m / dims[0] + (coords[0] < m % dims[0]); /* numbers of row for the A sub-block */
+  uint sub_n = n / dims[1] + (coords[1] < n % dims[1]); /* numbers of columns for the B sub-block */
+  uint max_sub_k = k / K2 + (k % K2 > 0);
+
+  double *buffer_a = (double *)malloc(sub_m * max_sub_k * sizeof(double));
+  double *buffer_b = (double *)malloc(max_sub_k * sub_n * sizeof(double));
+
+  if (buffer_a == NULL || buffer_b == NULL) {
+    free(buffer_b);
+    free(buffer_a);
+    return 1;
+  }
+
+  double *A_dev, *B_dev, *C_dev;
+
+  if (cudaMalloc(&A_dev, sub_m * max_sub_k * sizeof(double)) != cudaSuccess) {
+    cudaFree(A_dev);
+    free(buffer_b);
+    free(buffer_a);
+    return 1;
+  }
+
+  if (cudaMalloc(&B_dev, max_sub_k * sub_n * sizeof(double)) != cudaSuccess) {
+    cudaFree(B_dev);
+    cudaFree(A_dev);
+    free(buffer_b);
+    free(buffer_a);
+    return 1;
+  }
+
+  if (cudaMalloc(&C_dev, sub_m * sub_n * sizeof(double)) != cudaSuccess) {
+    cudaFree(C_dev);
+    cudaFree(B_dev);
+    cudaFree(A_dev);
+    free(buffer_b);
+    free(buffer_a);
+    return 1;
+  }
+
+  cublasHandle_t handle;
+  if (cublasCreate(&handle) != CUBLAS_STATUS_SUCCESS) {
+    cudaFree(C_dev);
+    cudaFree(B_dev);
+    cudaFree(A_dev);
+    free(buffer_b);
+    free(buffer_a);
+    return 1;
+  }
+
+  /* copy result matrix to GPU */
+  cudaMemcpy(C_dev, C, m * n * sizeof(double), cudaMemcpyHostToDevice);
+
+  /* create communicators along rows and columns */
+  int remain_dims_row[2] = {0, 1};
+  int remain_dims_col[2] = {1, 0};
+  MPI_Comm row_comm, col_comm;
+  MPI_Cart_sub(grid_comm, remain_dims_row, &row_comm);
+  MPI_Cart_sub(grid_comm, remain_dims_col, &col_comm);
+
+  const double alpha = 1;
+  const double beta = 1;
+
+  for (uint i = 0; i < K2; i++) {
+    uint r = i % dims[0];
+    uint c = i % dims[1];
+
+    /* calculate the k of the sending process */
+    uint sub_k = k / K2 + (i < k % K2);
+
+    /**
+     * NOTE 2025-05-22 (Salvatore)
+     * the following assumes that blocks assigned to the process are stored contiguosly one after the other and NOT interleaved
+     * wrong format: row 0 of block 0, row 0 of block 1, row 1 of block 0, row 1 of block 1, ...
+     * correct format: row 0 of block 0, row 1 of block 0, row n of block 0, row 0 of block 1, ...
+     */
+
+    double *block_a, *block_b;
+
+    if (coords[1] == c) {
+      block_a = A;        /* we are sending the block */
+      A += sub_m * sub_k; /* we may have to send again in the future, skip the pointer to the start of the other block */
+    } else {
+      block_a = buffer_a; /* we are receiving, prepare the buffer */
+    }
+
+    if (coords[0] == r) {
+      block_b = B;        /* we are sending the block */
+      B += sub_k * sub_n; /* we may have to send again in the future, skip the pointer to the start of the other block */
+    } else {
+      block_b = buffer_b; /* we are receiving, prepare the buffer */
+    }
+
+    /* a process broadcasts one of its blocks of A on all the other processes in the same row */
+    MPI_Bcast(block_a, sub_m * sub_k, MPI_DOUBLE, c, row_comm);
+
+    /* a process broadcasts one of its blocks of B on all the other processes in the same column */
+    MPI_Bcast(block_b, sub_k * sub_n, MPI_DOUBLE, r, col_comm);
+
+    /* copy blocks from CPU to GPU */
+    cudaMemcpy(A_dev, block_a, sub_m * sub_k * sizeof(double), cudaMemcpyHostToDevice);
+    cudaMemcpy(B_dev, block_b, sub_k * sub_n * sizeof(double), cudaMemcpyHostToDevice);
+
+    /* compute product on the GPU */
+    cublasDgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, sub_n, sub_m, sub_k, &alpha, block_b, sub_n, block_a, sub_k, &beta, C_dev, sub_n);
+  }
+
+  /* copy the final result from the GPU to the CPU */
+  cudaMemcpy(C, C_dev, sub_m * sub_n * sizeof(double), cudaMemcpyDeviceToHost);
+
+  /* cleanup */
+  cublasDestroy(handle);
+  MPI_Comm_free(&row_comm);
+  MPI_Comm_free(&col_comm);
+  cudaFree(C_dev);
+  cudaFree(B_dev);
+  cudaFree(A_dev);
+  free(buffer_b);
+  free(buffer_a);
 
   return 0;
 }
