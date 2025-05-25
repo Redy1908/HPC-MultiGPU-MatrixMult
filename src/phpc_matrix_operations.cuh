@@ -3,7 +3,7 @@
 
 #include <cublas_v2.h>
 #include <cuda_runtime.h>
-#include <mpi/mpi.h>
+#include <mpi.h> // sul cluster deve essere #include <mpi.h> in locale se serve mpi/mpi.h
 
 typedef struct dim2 {
   unsigned int x, y;

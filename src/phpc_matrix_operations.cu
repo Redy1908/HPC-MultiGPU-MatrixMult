@@ -1,6 +1,6 @@
 #include <cublas_v2.h>
 #include <cuda_runtime.h>
-#include <mpi/mpi.h>
+#include <mpi.h> // sul cluster deve essere #include <mpi.h> in locale se serve mpi/mpi.h
 #include <stdlib.h>
 
 #include "phpc_matrix_operations.cuh"

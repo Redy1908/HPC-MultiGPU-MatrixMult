@@ -1,7 +1,7 @@
 #ifndef _PHPC_UTILS_H
 #define _PHPC_UTILS_H
 
-#include <mpi/mpi.h>
+#include <mpi.h> // sul cluster deve essere #include <mpi.h> in locale se serve mpi/mpi.h
 #include <stdio.h>
 #include <stdlib.h>
 
