@@ -22,11 +22,11 @@ extern "C" {
 #endif
 
 int phpc_gemm_sequential(const double *A, const double *B, double *C, unsigned int m, unsigned int k, unsigned int n);
-int phpc_gemm_cuda(const double *A, const double *B, double *C, unsigned int m, unsigned int k, unsigned int n, dim2 grid_size, dim2 block_size);
+int phpc_gemm_cuda(const double *A, const double *B, double *C, unsigned int m, unsigned int k, unsigned int n, dim3 grid_size, dim3 block_size);
 int phpc_gemm_cublas(const double *A, const double *B, double *C, int m, int k, int n);
 
 int phpc_gemm_summa_sequential(const MPI_Comm grid_comm, double *A, double *B, double *C, unsigned int m, unsigned int k, unsigned int n);
-int phpc_gemm_summa_cuda(const MPI_Comm grid_comm, double *A, double *B, double *C, unsigned int m, unsigned int k, unsigned int n, dim2 grid_size, dim2 block_size);
+int phpc_gemm_summa_cuda(const MPI_Comm grid_comm, double *A, double *B, double *C, unsigned int m, unsigned int k, unsigned int n, dim3 grid_size, dim3 block_size);
 int phpc_gemm_summa_cublas(const MPI_Comm grid_comm, double *A, double *B, double *C, int m, int k, int n);
 
 #if defined(__cplusplus)

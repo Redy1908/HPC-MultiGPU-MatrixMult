@@ -62,12 +62,18 @@ int main(int argc, char *argv[]) {
 
   cudaDeviceProp prop = set_gpu_and_get_properties(rank);
 
-  int tile_width = 32;
-  check_threads_per_block(prop, tile_width, rank);
-  check_shared_memory_usage(prop, tile_width, rank);
+  dim3 grid_size(1, 1, 1);
+  dim3 block_size(4, 4, 1);
 
-  dim2 grid_size(1, 1);
-  dim2 block_size(4, 4);
+  if (block_size.x != block_size.y) {
+    if (rank == 0) {
+      fprintf(stderr, "Error: Block size must be square.\n");
+    }
+    MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+  }
+
+  check_threads_per_block(prop, block_size.x, rank);
+  check_shared_memory_usage(prop, block_size.x, rank);
   phpc_gemm_summa_cuda(grid_comm, A, B, C, M, K, N, grid_size, block_size);
 
   MPI_Gather(C, block_size_elements, MPI_DOUBLE,
