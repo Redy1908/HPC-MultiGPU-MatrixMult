@@ -1,8 +1,7 @@
 #include <string.h>
 
-#include "functions.cuh"
 #include "phpc_matrix_operations.cuh"
-#include "utils.h"
+#include "utils.cuh"
 
 int main(int argc, char *argv[]) {
   int i, j, M, K, N, p_rank;

@@ -1,8 +1,6 @@
-#include <math.h>
-#include <stdlib.h>
+#include <sys/time.h>
 
-#include "functions.cuh"
-#include "utils.h"
+#include "utils.cuh"
 
 cudaDeviceProp set_gpu_and_get_properties(int rank) {
   cudaDeviceProp prop;
@@ -114,4 +112,29 @@ void read_matrix_B_block(const char *filename, double **B, int K, int N, int loc
 
   MPI_File_close(&file);
   MPI_Type_free(&filetype);
+}
+
+int find_lcm(int a, int b) {
+  int q, r;
+  int x = a;
+  int y = b;
+
+  while (y != 0) {
+    q = x / y;
+    r = x - q * y;
+    x = y;
+    y = r;
+  }
+
+  return a * b / x;
+}
+
+double get_cur_time() {
+  struct timeval tv;
+  double cur_time;
+
+  gettimeofday(&tv, NULL);
+  cur_time = tv.tv_sec + tv.tv_usec / 1000000.0;
+
+  return cur_time;
 }

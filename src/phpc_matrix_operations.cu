@@ -4,23 +4,9 @@
 #include <stdlib.h>
 
 #include "phpc_matrix_operations.cuh"
+#include "utils.cuh"
 
 #define IDX(row, col, num_cols) ((row) * (num_cols) + (col))
-
-int find_lcm(int a, int b) {
-  int q, r;
-  int x = a;
-  int y = b;
-
-  while (y != 0) {
-    q = x / y;
-    r = x - q * y;
-    x = y;
-    y = r;
-  }
-
-  return a * b / x;
-}
 
 __global__ void gemm_kernel(double *A, double *B, double *C, unsigned int m, unsigned int n, unsigned int k) {
   extern __shared__ double shared_mem[];

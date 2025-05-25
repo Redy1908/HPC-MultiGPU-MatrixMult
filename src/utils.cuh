@@ -1,7 +1,6 @@
-#ifndef FUNCTIONS_H
-#define FUNCTIONS_H
+#ifndef _PHPC_UTILS_H
+#define _PHPC_UTILS_H
 
-#include <cuda_runtime.h>
 #include <mpi/mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -9,6 +8,19 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#define MALLOC_CHECK(ptr, rank, var_name_str)                                           \
+  if (ptr == NULL) {                                                                    \
+    fprintf(stderr, "MALLOC Error in %s at line %d (Rank %d): Failed to allocate %s\n", \
+            __FILE__, __LINE__, rank, var_name_str);                                    \
+    MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);                                            \
+  }
+
+#define MPI_Assert(check, rank)                                                      \
+  if (!(check)) {                                                                    \
+    fprintf(stderr, "Error in %s at line %d (Rank %d)\n", __FILE__, __LINE__, rank); \
+    MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);                                         \
+  }
 
 #define CUDA_CHECK(err_expr, rank_arg)                                         \
   do {                                                                         \
@@ -27,6 +39,9 @@ void check_shared_memory_usage(cudaDeviceProp prop, int tile_width, int rank);
 void read_matrix_A_block(const char *filename, double **A, int M, int K, int local_M, int local_K, int proc_row, int lcm, int rank);
 void read_matrix_dimensions(const char *filename, int *rows, int *cols, int rank);
 void read_matrix_B_block(const char *filename, double **B, int K, int N, int local_K, int local_N, int proc_col, int lcm, int rank);
+
+int find_lcm(int a, int b);
+double get_cur_time();
 
 #ifdef __cplusplus
 }
