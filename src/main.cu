@@ -62,8 +62,8 @@ int main(int argc, char *argv[]) {
 
   cudaDeviceProp prop = set_gpu_and_get_properties(rank);
 
-  dim3 grid_size(1, 1, 1);
-  dim3 block_size(4, 4, 1);
+  dim2 grid_size(1, 1);
+  dim2 block_size(4, 4);
 
   if (block_size.x != block_size.y) {
     if (rank == 0) {
