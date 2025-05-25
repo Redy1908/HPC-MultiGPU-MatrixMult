@@ -1,6 +1,6 @@
 #include <cublas_v2.h>
 #include <cuda_runtime.h>
-#include <mpi.h> // sul cluster deve essere #include <mpi.h> in locale se serve mpi/mpi.h
+#include <mpi.h>  // sul cluster deve essere #include <mpi.h> in locale se serve mpi/mpi.h
 #include <stdlib.h>
 
 #include "phpc_matrix_operations.cuh"
@@ -57,7 +57,7 @@ int phpc_gemm_sequential(const double *A, const double *B, double *C, unsigned i
   return 0;
 }
 
-int phpc_gemm_cuda(const double *A, const double *B, double *C, unsigned int m, unsigned int k, unsigned int n, dim3 grid_size, dim3 block_size) {
+int phpc_gemm_cuda(const double *A, const double *B, double *C, unsigned int m, unsigned int k, unsigned int n, dim2 grid_size, dim2 block_size) {
   double *A_dev, *B_dev, *C_dev;
   cudaMalloc(&A_dev, m * k * sizeof(double));
   cudaMalloc(&B_dev, k * n * sizeof(double));
@@ -75,7 +75,9 @@ int phpc_gemm_cuda(const double *A, const double *B, double *C, unsigned int m, 
   cudaMemcpy(B_dev, B, k * n * sizeof(double), cudaMemcpyHostToDevice);
   cudaMemcpy(C_dev, C, m * n * sizeof(double), cudaMemcpyHostToDevice);
 
-  gemm_kernel<<<grid_size, block_size, shared_mem_size>>>(A_dev, B_dev, C_dev, m, n, k);
+  dim3 kernel_grid_size(grid_size.x, grid_size.y, 1);
+  dim3 kernel_block_size(block_size.x, block_size.y, 1);
+  gemm_kernel<<<kernel_grid_size, kernel_block_size, shared_mem_size>>>(A_dev, B_dev, C_dev, m, n, k);
   cudaDeviceSynchronize();
 
   cudaMemcpy(C, C_dev, m * n * sizeof(double), cudaMemcpyDeviceToHost);
@@ -219,7 +221,7 @@ int phpc_gemm_summa_sequential(const MPI_Comm grid_comm, double *A, double *B, d
   return 0;
 }
 
-int phpc_gemm_summa_cuda(const MPI_Comm grid_comm, double *A, double *B, double *C, unsigned int m, unsigned int k, unsigned int n, dim3 grid_size, dim3 block_size) {
+int phpc_gemm_summa_cuda(const MPI_Comm grid_comm, double *A, double *B, double *C, unsigned int m, unsigned int k, unsigned int n, dim2 grid_size, dim2 block_size) {
   int rank;
   int dims[2], periods[2], coords[2];
 
@@ -319,7 +321,9 @@ int phpc_gemm_summa_cuda(const MPI_Comm grid_comm, double *A, double *B, double 
 
     /* compute product on the GPU */
     uint shared_mem_size = (sub_m * sub_n * 2) * sizeof(double);
-    gemm_kernel<<<grid_size, block_size, shared_mem_size>>>(A_dev, B_dev, C_dev, sub_m, sub_n, sub_k);
+    dim3 kernel_grid_size(grid_size.x, grid_size.y, 1);
+    dim3 kernel_block_size(block_size.x, block_size.y, 1);
+    gemm_kernel<<<kernel_grid_size, kernel_block_size, shared_mem_size>>>(A_dev, B_dev, C_dev, sub_m, sub_n, sub_k);
     cudaDeviceSynchronize();
   }
 
