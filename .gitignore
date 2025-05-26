@@ -15,3 +15,7 @@ inputs/*
 !inputs/.gitkeep
 
 matrix_generation/matrix_generation.out
+
+venv/*
+
+jupyter/.ipynb_checkpoints
