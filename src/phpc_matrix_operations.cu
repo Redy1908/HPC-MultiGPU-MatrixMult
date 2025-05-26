@@ -8,44 +8,62 @@
 
 #define IDX(row, col, num_cols) ((row) * (num_cols) + (col))
 
-__global__ void gemm_kernel(double *A, double *B, double *C, unsigned int m, unsigned int n, unsigned int k) {
+__global__ void gemm_kernel(double *A, double *B, double *C, int M, int N, int K) {
   extern __shared__ double shared_mem[];
 
-  // int tile_width = blockDim.x;
+  int tile_width = blockDim.x;
 
-  double *s_A = shared_mem;
-  double *s_B = shared_mem + blockDim.x * blockDim.y;
+  double *s_A = (double *)shared_mem;
+  double *s_B = (double *)shared_mem + tile_width * tile_width;
 
   int tx = threadIdx.x;
   int ty = threadIdx.y;
 
-  int row = blockIdx.y * blockDim.y + threadIdx.y;
-  int col = blockIdx.x * blockDim.x + threadIdx.x;
+  int num_tiles_along_N = (int)ceil((double)N / tile_width);
+  int num_tiles_along_M = (int)ceil((double)M / tile_width);
+  int total_output_tiles = num_tiles_along_M * num_tiles_along_N;
 
-  double c_value = 0.0;
-  unsigned int phases = k / blockDim.x + (k % blockDim.x > 0);
+  int block_id_1d = blockIdx.y * gridDim.x + blockIdx.x;
+  int total_launched_blocks = gridDim.x * gridDim.y;
 
-  for (int phase = 0; phase < phases; phase++) {
-    if ((row < m) && (phase * blockDim.x + tx) < k)
-      s_A[ty * blockDim.x + tx] = A[row * k + phase * blockDim.x + tx];
-    else
-      s_A[ty * blockDim.x + tx] = 0.0;
+  // Grid-stride loop: ogni blocco itera sulle tile di C che gli sono assegnate
+  for (int current_tile_1d_idx = block_id_1d; current_tile_1d_idx < total_output_tiles; current_tile_1d_idx += total_launched_blocks) {
+    int by_tile = current_tile_1d_idx / num_tiles_along_N;
+    int bx_tile = current_tile_1d_idx % num_tiles_along_N;
 
-    if ((phase * blockDim.y + ty) < k && (col < n))
-      s_B[ty * blockDim.x + tx] = B[(phase * blockDim.y + ty) * n + col];
-    else
-      s_B[ty * blockDim.x + tx] = 0.0;
+    int C_tile_row_base = by_tile * tile_width;
+    int C_tile_col_base = bx_tile * tile_width;
 
-    __syncthreads();
+    int global_row_C = C_tile_row_base + ty;
+    int global_col_C = C_tile_col_base + tx;
 
-    for (int k = 0; k < blockDim.x; ++k) {
-      c_value += s_A[ty * blockDim.x + k] * s_B[k * blockDim.y + tx];
+    double c_value = 0.0;
+
+    int num_phases = (int)ceil((double)K / tile_width);
+    for (int phase = 0; phase < num_phases; ++phase) {
+      if ((global_row_C < M) && (phase * tile_width + tx) < K)
+        s_A[ty * tile_width + tx] = A[global_row_C * K + phase * tile_width + tx];
+      else
+        s_A[ty * tile_width + tx] = 0.0;
+
+      if ((phase * tile_width + ty) < K && (global_col_C < N))
+        s_B[ty * tile_width + tx] = B[(phase * tile_width + ty) * N + global_col_C];
+      else
+        s_B[ty * tile_width + tx] = 0.0;
+
+      __syncthreads();
+
+      for (int k_tile = 0; k_tile < tile_width; ++k_tile) {
+        if (phase * tile_width + k_tile < K) {
+          c_value += s_A[ty * tile_width + k_tile] * s_B[k_tile * tile_width + tx];
+        }
+      }
+      __syncthreads();
     }
-    __syncthreads();
-  }
 
-  if (row < m && col < n)
-    C[row * n + col] += c_value;
+    if ((global_row_C < M) && (global_col_C < N))
+      C[global_row_C * N + global_col_C] += c_value;
+  }
 }
 
 int phpc_gemm_sequential(const double *A, const double *B, double *C, unsigned int m, unsigned int k, unsigned int n) {
