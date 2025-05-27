@@ -1,7 +1,13 @@
 #ifndef _PHPC_UTILS_H
 #define _PHPC_UTILS_H
 
-#include <mpi.h> // sul cluster deve essere #include <mpi.h> in locale se serve mpi/mpi.h
+#if defined(__has_include)
+#if __has_include(<mpi.h>)
+#include <mpi.h>
+#else
+#include <mpi/mpi.h>
+#endif
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -23,14 +29,14 @@ extern "C" {
   }
 
 #define CUDA_CHECK(err_expr, rank_arg)                                         \
-  do {                                                                         \
+  {                                                                            \
     cudaError_t err_code = (err_expr);                                         \
     if (err_code != cudaSuccess) {                                             \
       fprintf(stderr, "CUDA Error in %s at line %d (Rank %d): %s\n", __FILE__, \
               __LINE__, rank_arg, cudaGetErrorString(err_code));               \
       MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);                                 \
     }                                                                          \
-  } while (0)
+  }
 
 cudaDeviceProp set_gpu_and_get_properties(int rank);
 void check_threads_per_block(cudaDeviceProp prop, int tile_width, int rank);
