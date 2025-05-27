@@ -65,13 +65,6 @@ int main(int argc, char *argv[]) {
   dim2 grid_size(1, 1);
   unsigned int block_width = 4;
 
-  if (block_size.x != block_size.y) {
-    if (rank == 0) {
-      fprintf(stderr, "Error: Block size must be square.\n");
-    }
-    MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
-  }
-
   check_threads_per_block(prop, block_width, rank);
   check_shared_memory_usage(prop, block_width, rank);
 
