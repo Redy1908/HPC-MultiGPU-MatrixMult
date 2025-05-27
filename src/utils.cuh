@@ -29,14 +29,14 @@ extern "C" {
   }
 
 #define CUDA_CHECK(err_expr, rank_arg)                                         \
-  do {                                                                         \
+  {                                                                            \
     cudaError_t err_code = (err_expr);                                         \
     if (err_code != cudaSuccess) {                                             \
       fprintf(stderr, "CUDA Error in %s at line %d (Rank %d): %s\n", __FILE__, \
               __LINE__, rank_arg, cudaGetErrorString(err_code));               \
       MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);                                 \
     }                                                                          \
-  } while (0)
+  }
 
 cudaDeviceProp set_gpu_and_get_properties(int rank);
 void check_threads_per_block(cudaDeviceProp prop, int tile_width, int rank);
