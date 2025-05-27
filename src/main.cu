@@ -63,7 +63,7 @@ int main(int argc, char *argv[]) {
   cudaDeviceProp prop = set_gpu_and_get_properties(rank);
 
   dim2 grid_size(1, 1);
-  dim2 block_size(4, 4);
+  unsigned int block_width = 4;
 
   if (block_size.x != block_size.y) {
     if (rank == 0) {
@@ -72,9 +72,15 @@ int main(int argc, char *argv[]) {
     MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
   }
 
-  check_threads_per_block(prop, block_size.x, rank);
-  check_shared_memory_usage(prop, block_size.x, rank);
-  phpc_gemm_summa_cuda(grid_comm, A, B, C, M, K, N, grid_size, block_size);
+  check_threads_per_block(prop, block_width, rank);
+  check_shared_memory_usage(prop, block_width, rank);
+
+  double start = get_cur_time();
+
+  phpc_gemm_summa_cuda(grid_comm, A, B, C, M, K, N, grid_size, block_width);
+
+  double end = get_cur_time();
+  double elapsed = end - start;
 
   MPI_Gather(C, block_size_elements, MPI_DOUBLE,
              all_C_blocks, block_size_elements, MPI_DOUBLE,

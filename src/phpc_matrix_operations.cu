@@ -75,7 +75,7 @@ int phpc_gemm_sequential(const double *A, const double *B, double *C, unsigned i
   return 0;
 }
 
-int phpc_gemm_cuda(const double *A, const double *B, double *C, unsigned int m, unsigned int k, unsigned int n, dim2 grid_size, dim2 block_size) {
+int phpc_gemm_cuda(const double *A, const double *B, double *C, unsigned int m, unsigned int k, unsigned int n, dim2 grid_size, unsigned int block_width) {
   double *A_dev, *B_dev, *C_dev;
   cudaMalloc(&A_dev, m * k * sizeof(double));
   cudaMalloc(&B_dev, k * n * sizeof(double));
@@ -94,7 +94,7 @@ int phpc_gemm_cuda(const double *A, const double *B, double *C, unsigned int m, 
   cudaMemcpy(C_dev, C, m * n * sizeof(double), cudaMemcpyHostToDevice);
 
   dim3 kernel_grid_size(grid_size.x, grid_size.y, 1);
-  dim3 kernel_block_size(block_size.x, block_size.y, 1);
+  dim3 kernel_block_size(block_width, block_width, 1);
   gemm_kernel<<<kernel_grid_size, kernel_block_size, shared_mem_size>>>(A_dev, B_dev, C_dev, m, n, k);
   cudaDeviceSynchronize();
 
@@ -239,7 +239,7 @@ int phpc_gemm_summa_sequential(const MPI_Comm grid_comm, double *A, double *B, d
   return 0;
 }
 
-int phpc_gemm_summa_cuda(const MPI_Comm grid_comm, double *A, double *B, double *C, unsigned int m, unsigned int k, unsigned int n, dim2 grid_size, dim2 block_size) {
+int phpc_gemm_summa_cuda(const MPI_Comm grid_comm, double *A, double *B, double *C, unsigned int m, unsigned int k, unsigned int n, dim2 grid_size, unsigned int block_width) {
   int rank;
   int dims[2], periods[2], coords[2];
 
@@ -338,9 +338,9 @@ int phpc_gemm_summa_cuda(const MPI_Comm grid_comm, double *A, double *B, double 
     cudaMemcpy(B_dev, block_b, sub_k * sub_n * sizeof(double), cudaMemcpyHostToDevice);
 
     /* compute product on the GPU */
-    uint shared_mem_size = (sub_m * sub_n * 2) * sizeof(double);
+    uint shared_mem_size = 2 * block_width * block_width * sizeof(double);
     dim3 kernel_grid_size(grid_size.x, grid_size.y, 1);
-    dim3 kernel_block_size(block_size.x, block_size.y, 1);
+    dim3 kernel_block_size(block_width, block_width, 1);
     gemm_kernel<<<kernel_grid_size, kernel_block_size, shared_mem_size>>>(A_dev, B_dev, C_dev, sub_m, sub_n, sub_k);
     cudaDeviceSynchronize();
   }
