@@ -1,9 +1,13 @@
 #ifndef _PHPC_MATRIX_OPERATIONS
 #define _PHPC_MATRIX_OPERATIONS
 
-#include <cublas_v2.h>
-#include <cuda_runtime.h>
-#include <mpi.h>  // sul cluster deve essere #include <mpi.h> in locale se serve mpi/mpi.h
+#if defined(__has_include)
+#if __has_include(<mpi.h>)
+#include <mpi.h>
+#else
+#include <mpi/mpi.h>
+#endif
+#endif
 
 typedef struct dim2 {
   unsigned int x, y;
