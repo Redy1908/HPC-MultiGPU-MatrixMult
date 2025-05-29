@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
+#include <unistd.h>
 
 #include "utils.cuh"
 
@@ -114,6 +115,54 @@ void read_matrix_B_block(const char *filename, double **B, int K, int N, int loc
 
   MPI_File_close(&file);
   MPI_Type_free(&filetype);
+}
+
+int get_parameters(int argc, char *const *argv, int *m, int *k, int *n, int *process_grid_dims, int *kernel_grid_size, int *kernel_block_width) {
+  if (m == NULL || k == NULL || n == NULL || process_grid_dims == NULL || kernel_grid_size == NULL || kernel_block_width == NULL)
+    return 1;
+
+  /* initialize to some invalid values so it returns error if any of them is not set correctly */
+  *m = *k = *n = 0;
+  process_grid_dims[0] = process_grid_dims[1] = 0;
+  kernel_grid_size[0] = kernel_grid_size[1] = 0;
+  *kernel_block_width = 0;
+
+  int c;
+  while ((c = getopt(argc, argv, "m:k:n:r:c:w:x:y:")) != -1) {
+    switch (c) {
+      case 'm':
+        *m = atoi(optarg);
+        break;
+      case 'k':
+        *k = atoi(optarg);
+        break;
+      case 'n':
+        *n = atoi(optarg);
+        break;
+      case 'r':
+        process_grid_dims[0] = atoi(optarg);
+        break;
+      case 'c':
+        process_grid_dims[1] = atoi(optarg);
+        break;
+      case 'w':
+        *kernel_block_width = atoi(optarg);
+        break;
+      case 'x':
+        kernel_grid_size[0] = atoi(optarg);
+        break;
+      case 'y':
+        kernel_grid_size[1] = atoi(optarg);
+        break;
+      default:
+        break;
+    }
+  }
+
+  if (*m <= 0 || *k <= 0 || *n <= 0 || process_grid_dims[0] <= 0 || process_grid_dims[1] <= 0 || kernel_grid_size[0] <= 0 || kernel_grid_size[1] <= 0 || *kernel_block_width <= 0)
+    return 2;
+
+  return 0;
 }
 
 int find_lcm(int a, int b) {
