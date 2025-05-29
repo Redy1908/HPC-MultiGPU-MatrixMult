@@ -64,9 +64,7 @@ int main(int argc, char **argv) {
   dim2 grid_size(kernel_grid_dims[0], kernel_grid_dims[1]);
   double start = get_cur_time();
 
-  // phpc_gemm_sequential(A, B, C, M, K, N);
-  // phpc_gemm_summa_cuda(grid_comm, A, B, C, M, K, N, grid_size, block_width);
-  phpc_gemm_cublas(A, B, C, M, K, N);
+  phpc_gemm_summa_cuda(grid_comm, A, B, C, M, K, N, grid_size, block_width);
 
   if (rank == 0) {
     double end = get_cur_time();
