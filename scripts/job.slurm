@@ -24,4 +24,4 @@ srun --mpi=pmix_v3 bash -c '
         --cuda-memory-usage=true \
         --stats=true \
         --trace=cuda,mpi,nvtx \
-        bin/main_matmul.out
+        bin/main_matmul.out'
