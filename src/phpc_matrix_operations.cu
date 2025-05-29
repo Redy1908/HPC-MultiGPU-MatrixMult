@@ -87,11 +87,11 @@ int phpc_gemm_cuda(const double *A, const double *B, double *C, unsigned int m, 
     return 1;
   }
 
-  uint shared_mem_size = (m * k + k * n) * sizeof(double);
   cudaMemcpy(A_dev, A, m * k * sizeof(double), cudaMemcpyHostToDevice);
   cudaMemcpy(B_dev, B, k * n * sizeof(double), cudaMemcpyHostToDevice);
   cudaMemcpy(C_dev, C, m * n * sizeof(double), cudaMemcpyHostToDevice);
 
+  uint shared_mem_size = 2 * block_width * block_width * sizeof(double);
   dim3 kernel_grid_size(grid_size.x, grid_size.y, 1);
   dim3 kernel_block_size(block_width, block_width, 1);
   gemm_kernel<<<kernel_grid_size, kernel_block_size, shared_mem_size>>>(A_dev, B_dev, C_dev, m, n, k);
