@@ -349,13 +349,14 @@ int phpc_gemm_summa_cuda(const MPI_Comm grid_comm, double *A, double *B, double 
   cudaMemcpy(C, C_dev, sub_m * sub_n * sizeof(double), cudaMemcpyDeviceToHost);
 
   /* cleanup */
-  MPI_Comm_free(&row_comm);
-  MPI_Comm_free(&col_comm);
   cudaFree(C_dev);
   cudaFree(B_dev);
   cudaFree(A_dev);
   free(buffer_b);
   free(buffer_a);
+
+  MPI_Comm_free(&row_comm);
+  MPI_Comm_free(&col_comm);
 
   return 0;
 }
