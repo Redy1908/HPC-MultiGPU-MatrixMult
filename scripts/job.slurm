@@ -1,9 +1,6 @@
 #!/bin/bash
 #SBATCH -p gpus                        # Queue
-#SBATCH -N 1                           # Number of nodes (up to 16 nodes * 4 GPUs/node = 64 GPUs)
 #SBATCH --ntasks=4                     # Total number of MPI tasks (one per GPU)
-#SBATCH --ntasks-per-node=4            # MPI tasks per node (corresponding to GPUs per node)
-#SBATCH --gpus-per-node=4              # GPUs per node
 #SBATCH --gpus-per-task=1              # GPUs per task
 #SBATCH --cpus-per-task=1              # Number of CPU per task
 #SBATCH --time=00:05:00                # Maximum time limit 5 min (up to 7 days)
