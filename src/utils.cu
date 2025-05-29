@@ -61,7 +61,7 @@ void read_matrix_dimensions(const char *filename, int *rows, int *cols, int rank
 
 // Legge blocco locale della matrice A (M x K)
 // Blocchi: righe in base a dims[0], colonne in base a lcm(dims[0], dims[1])
-void read_matrix_A_block(const char *filename, double **A, int M, int K, int local_M, int local_K, int proc_row, int lcm, int rank) {
+void read_matrix_A_block(const char *filename, double **A, int M, int K, int local_M, int local_K, int start_row, int start_col, int rank) {
   MPI_File file;
   MPI_Offset offset;
 
@@ -72,12 +72,12 @@ void read_matrix_A_block(const char *filename, double **A, int M, int K, int loc
 
   // Calcolo offset: righe da proc_row * local_M, colonne da (proc_row * dims[1] + proc_col) * local_K
   // Ma qui leggiamo tutto il blocco locale come blocco contiguo in row-major
-  MPI_Offset data_offset = 2 * sizeof(int);  // salto header (dimensioni)
-  offset = data_offset + (MPI_Offset)(proc_row * local_M * K) * sizeof(double);
+  MPI_Offset data_offset = 2 * sizeof(int);  // salto header
+  offset = data_offset + (MPI_Offset)(start_row * K + start_col) * sizeof(double);
 
   for (int i = 0; i < local_M; ++i) {
     MPI_File_read_at(file,
-                     offset + i * K * sizeof(double),
+                     data_offset + (MPI_Offset)((start_row + i) * K + start_col) * sizeof(double),
                      (*A) + i * local_K,
                      local_K,
                      MPI_DOUBLE,
@@ -89,16 +89,12 @@ void read_matrix_A_block(const char *filename, double **A, int M, int K, int loc
 
 // Legge blocco locale della matrice B (K x N)
 // Blocchi: righe in base a lcm(dims[0], dims[1]), colonne in base a dims[1]
-void read_matrix_B_block(const char *filename, double **B, int K, int N, int local_K, int local_N, int proc_col, int lcm, int rank) {
+void read_matrix_B_block(const char *filename, double **B, int K, int N, int local_K, int local_N, int start_row, int start_col, int rank) {
   MPI_File file;
   MPI_Datatype filetype;
-  int sizes[2] = {K, N};  // dimensione globale
+  int sizes[2] = {K, N};
   int subsizes[2] = {local_K, local_N};
-  int starts[2] = {0, proc_col * local_N};
-
-  // Ogni processo nella riga del ciclo SUMMA (su K) avanza di un passo
-  int proc_row_col_lcm_index = rank % lcm;
-  starts[0] = proc_row_col_lcm_index * local_K;
+  int starts[2] = {start_row, start_col};
 
   *B = (double *)malloc(local_K * local_N * sizeof(double));
   MALLOC_CHECK(*B, rank, "B");

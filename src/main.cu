@@ -45,9 +45,21 @@ int main(int argc, char *argv[]) {
   C = (double *)malloc(M * N * sizeof(double));
   MALLOC_CHECK(C, rank, "C");
 
-  int local_M = M / dims[0];
-  int local_K = K / lcm;
-  int local_N = N / dims[1];
+  // Calcolo offset e dimensioni locali
+  int base_M = M / dims[0], rem_M = M % dims[0];
+  int base_N = N / dims[1], rem_N = N % dims[1];
+  int base_K = K / lcm, rem_K = K % lcm;
+
+  int proc_lcm_idx = (coord[0] * dims[1] + coord[1]) % lcm;
+
+  int local_M = base_M + (coord[0] < rem_M ? 1 : 0);
+  int local_N = base_N + (coord[1] < rem_N ? 1 : 0);
+  int local_K = base_K + (proc_lcm_idx < rem_K ? 1 : 0);
+
+  // Calcolo gli offset globali per ciascun processo
+  int start_M = base_M * coord[0] + (coord[0] < rem_M ? coord[0] : rem_M);
+  int start_N = base_N * coord[1] + (coord[1] < rem_N ? coord[1] : rem_N);
+  int start_K = base_K * proc_lcm_idx + (proc_lcm_idx < rem_K ? proc_lcm_idx : rem_K);
 
   int block_size_elements = local_M * local_N;
 
@@ -56,8 +68,8 @@ int main(int argc, char *argv[]) {
     MALLOC_CHECK(all_C_blocks, rank, "all_C_blocks");
   }
 
-  read_matrix_A_block("inputs/A.bin", &A, M, K, local_M, local_K, coord[0], lcm, rank);
-  read_matrix_B_block("inputs/B.bin", &B, K, N, local_K, local_N, coord[1], lcm, rank);
+  read_matrix_A_block("inputs/A.bin", &A, M, K, local_M, local_K, start_M, start_K, rank);
+  read_matrix_B_block("inputs/B.bin", &B, K, N, local_K, local_N, start_K, start_N, rank);
   memset(C, 0, sizeof(double) * M * N);
 
   cudaDeviceProp prop = set_gpu_and_get_properties(rank);
@@ -84,18 +96,23 @@ int main(int argc, char *argv[]) {
       int p_coord_row = p_rank / dims[1];
       int p_coord_col = p_rank % dims[1];
 
-      int start_row_global = p_coord_row * local_M;
-      int start_col_global = p_coord_col * local_N;
+      // Calcola start_row_global in base a base_M + resto
+      int start_row_global = base_M * p_coord_row + (p_coord_row < rem_M ? p_coord_row : rem_M);
+      int start_col_global = base_N * p_coord_col + (p_coord_col < rem_N ? p_coord_col : rem_N);
+
+      // Calcola local_M e local_N reali per quel processo
+      int local_M_p = base_M + (p_coord_row < rem_M ? 1 : 0);
+      int local_N_p = base_N + (p_coord_col < rem_N ? 1 : 0);
 
       double *source_block_ptr = all_C_blocks + p_rank * block_size_elements;
 
-      for (i = 0; i < local_M; i++) {
-        for (j = 0; j < local_N; j++) {
+      for (i = 0; i < local_M_p; i++) {
+        for (j = 0; j < local_N_p; j++) {
           int global_row_idx = start_row_global + i;
           int global_col_idx = start_col_global + j;
 
           if (global_row_idx < M && global_col_idx < N) {
-            C[global_row_idx * N + global_col_idx] = source_block_ptr[i * local_N + j];
+            C[global_row_idx * N + global_col_idx] = source_block_ptr[i * local_N_p + j];
           }
         }
       }
