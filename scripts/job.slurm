@@ -16,11 +16,11 @@ nvcc src/main.cu src/utils.cu src/phpc_matrix_operations.cu -o bin/main_matmul.o
     -lineinfo
 
 srun --mpi=pmix_v3 bash -c '
-    export CUDA_VISIBLE_DEVICES=$SLURM_LOCALID
     nsys profile \
         --output=profiling/nsys_profile_rank_${SLURM_PROCID} \
+        --force-overwrite true \
         --gpu-metrics-device=all \
         --cuda-memory-usage=true \
-        --stats=true \
+        --stats=false \
         --trace=cuda,mpi,nvtx \
         bin/main_matmul.out'
