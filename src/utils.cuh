@@ -17,10 +17,10 @@ extern "C" {
     MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);                                            \
   }
 
-#define MPI_Assert(check)                                            \
-  if (!(check)) {                                                    \
-    fprintf(stderr, "Error in %s at line %d\n", __FILE__, __LINE__); \
-    MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);                         \
+#define MPI_Assert(check)                                                                \
+  if (!(check)) {                                                                        \
+    fprintf(stderr, "Assert failed in %s at line %d: %s\n", __FILE__, __LINE__, #check); \
+    MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);                                             \
   }
 
 #define CUDA_CHECK(err_expr, rank_arg)                                         \

@@ -533,6 +533,8 @@ int phpc_gemm_summa_cublas(const MPI_Comm grid_comm, double *A, double *B, doubl
   /* copy the final result from the GPU to the CPU */
   cudaMemcpy2D(C, n * sizeof(double), C_dev, sub_n * sizeof(double), sub_n * sizeof(double), sub_m, cudaMemcpyDeviceToHost);
 
+  printf("%s\n", cudaGetErrorName(cudaGetLastError()));
+
   /* cleanup */
   cublasDestroy(handle);
   cudaFree(C_dev);
