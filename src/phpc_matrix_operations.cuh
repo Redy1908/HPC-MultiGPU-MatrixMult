@@ -1,11 +1,7 @@
 #ifndef _PHPC_MATRIX_OPERATIONS
 #define _PHPC_MATRIX_OPERATIONS
 
-#if defined(__has_include) && __has_include(<mpi/mpi.h>)
-#include <mpi/mpi.h>
-#else
 #include <mpi.h>
-#endif
 
 typedef struct dim2 {
   unsigned int x, y;

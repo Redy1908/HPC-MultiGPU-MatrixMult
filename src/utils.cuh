@@ -1,13 +1,7 @@
 #ifndef _PHPC_UTILS_H
 #define _PHPC_UTILS_H
 
-#if defined(__has_include) && __has_include(<mpi/mpi.h>)
-#include <mpi/mpi.h>
-#else
 #include <mpi.h>
-#endif
-#include <stdio.h>
-#include <stdlib.h>
 
 #ifdef __cplusplus
 extern "C" {
