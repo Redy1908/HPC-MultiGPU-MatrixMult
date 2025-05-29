@@ -150,6 +150,7 @@ int phpc_gemm_cublas(const double *A, const double *B, double *C, int m, int k, 
     return 1;
   }
 
+  cudaDeviceSynchronize();
   cudaMemcpy(C, C_dev, m * n * sizeof(double), cudaMemcpyDeviceToHost);
 
   cublasDestroy(handle);

@@ -10,19 +10,18 @@ int main(int argc, char **argv) {
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
   int dims[2], kernel_grid_dims[2], block_width;
-  MPI_Assert(get_parameters(argc, argv, dims, kernel_grid_dims, &block_width) == 0);
+  int M, K, N;
+  MPI_Assert(get_parameters(argc, argv, &M, &K, &N, dims, kernel_grid_dims, &block_width) == 0);
   MPI_Assert(dims[0] * dims[1] == size);
-
-  printf("%d\n", block_width);
 
   MPI_Comm grid_comm;
   int period[] = {1, 1}, coord[2];
   MPI_Cart_create(MPI_COMM_WORLD, 2, dims, period, 0, &grid_comm);
   MPI_Cart_coords(grid_comm, rank, 2, coord);
 
-  int M, K, N, p_rank;
-  read_matrix_dimensions("inputs/A.bin", &M, &K, rank);
-  read_matrix_dimensions("inputs/B.bin", &K, &N, rank);
+  // int M, K, N, p_rank;
+  // read_matrix_dimensions("inputs/A.bin", &M, &K, rank);
+  // read_matrix_dimensions("inputs/B.bin", &K, &N, rank);
 
   int lcm = find_lcm(dims[0], dims[1]);
 
@@ -41,8 +40,20 @@ int main(int argc, char **argv) {
     MALLOC_CHECK(all_C_blocks, rank, "all_C_blocks");
   }
 
-  read_matrix_A_block("inputs/A.bin", &A, M, K, local_M, local_K, coord[0], lcm, rank);
-  read_matrix_B_block("inputs/B.bin", &B, K, N, local_K, local_N, coord[1], lcm, rank);
+  // read_matrix_A_block("inputs/A.bin", &A, M, K, local_M, local_K, coord[0], lcm, rank);
+  // read_matrix_B_block("inputs/B.bin", &B, K, N, local_K, local_N, coord[1], lcm, rank);
+  A = (double *)malloc(M * K * sizeof(double));
+  B = (double *)malloc(K * N * sizeof(double));
+  MPI_Assert(A != NULL && B != NULL);
+
+  for (size_t i = 0; i < M * K; i++) {
+    A[i] = rank + 1;
+  }
+
+  for (size_t i = 0; i < N * K; i++) {
+    B[i] = rank + 1;
+  }
+
   memset(C, 0, sizeof(double) * M * N);
 
   cudaDeviceProp prop = set_gpu_and_get_properties(rank);
@@ -53,37 +64,36 @@ int main(int argc, char **argv) {
   dim2 grid_size(kernel_grid_dims[0], kernel_grid_dims[1]);
   double start = get_cur_time();
 
-  phpc_gemm_summa_sequential(grid_comm, A, B, C, M, K, N);
-  // printf("%d %d\n", grid_size.x, grid_size.y);
+  // phpc_gemm_sequential(A, B, C, M, K, N);
   // phpc_gemm_summa_cuda(grid_comm, A, B, C, M, K, N, grid_size, block_width);
+  phpc_gemm_cublas(A, B, C, M, K, N);
 
-  double end = get_cur_time();
-  double elapsed = end - start;
-
-  // if (rank == 0) {
-  //   printf("%lf\n", elapsed);
-  // }
+  if (rank == 0) {
+    double end = get_cur_time();
+    double elapsed = end - start;
+    printf("%lf\n", elapsed);
+  }
 
   // MPI_Gather(C, block_size_elements, MPI_DOUBLE,
   //            all_C_blocks, block_size_elements, MPI_DOUBLE,
   //            0, MPI_COMM_WORLD);
 
-  for (size_t i = 0; i < size; i++) {
-    if (rank == i) {
-      unsigned int rows = M / dims[0] + (coord[0] < M % dims[0]);
-      unsigned int columns = N / dims[1] + (coord[1] < N % dims[1]);
+  // for (size_t i = 0; i < size; i++) {
+  //   if (rank == i) {
+  //     unsigned int rows = M / dims[0] + (coord[0] < M % dims[0]);
+  //     unsigned int columns = N / dims[1] + (coord[1] < N % dims[1]);
 
-      printf("Process %d\n", rank);
-      for (int i = 0; i < rows; i++) {
-        for (int j = 0; j < columns; j++)
-          printf("%lf ", C[i * columns + j]);
+  //     printf("Process %d\n", rank);
+  //     for (int i = 0; i < rows; i++) {
+  //       for (int j = 0; j < columns; j++)
+  //         printf("%lf ", C[i * columns + j]);
 
-        printf("\n");
-      }
-    }
+  //       printf("\n");
+  //     }
+  //   }
 
-    MPI_Barrier(grid_comm);
-  }
+  //   MPI_Barrier(grid_comm);
+  // }
 
   // if (rank == 0) {
   //   for (p_rank = 0; p_rank < size; p_rank++) {
@@ -126,5 +136,6 @@ int main(int argc, char **argv) {
     free(all_C_blocks);
 
   MPI_Finalize();
+
   return 0;
 }
