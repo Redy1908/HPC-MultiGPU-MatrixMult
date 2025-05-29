@@ -7,6 +7,12 @@
 
 #define IDX(row, col, num_cols) ((row) * (num_cols) + (col))
 
+unsigned int get_block_start_index(unsigned int i, unsigned int width, unsigned int n) {
+  unsigned int q = width / n;
+  unsigned int r = width % n;
+  return i * q + min(i, r);
+}
+
 __global__ void gemm_kernel(double *A, double *B, double *C, int M, int N, int K) {
   extern __shared__ double shared_mem[];
 
@@ -161,6 +167,40 @@ int phpc_gemm_cublas(const double *A, const double *B, double *C, int m, int k, 
   return 0;
 }
 
+void phpc_gemm_summa_gather(MPI_Comm row_comm, MPI_Comm col_comm, const int *dims, const int *coords, double *C, int sub_m, int m, int k, int n) {
+  /**
+   * gather the results in all processes
+   * first we collect the blocks of the processes in the same row
+   * then we collect the bigger blocks in the same column
+   */
+
+  int column_offset = 0; /* column offset to receive buffer */
+  int row_offset = get_block_start_index(coords[0], m, dims[0]);
+
+  for (size_t sender_index = 0; sender_index < dims[1]; sender_index++) {
+    int sub_n = n / dims[1] + (sender_index < n % dims[1]);
+
+    int sizes[2] = {m, n};                       /* original sizes of the buffer */
+    int starts[2] = {row_offset, column_offset}; /* offset of the broadcast block */
+    int subsizes[2] = {sub_m, sub_n};            /* sizes of the broadcast block */
+
+    MPI_Datatype subarray;
+    MPI_Type_create_subarray(2, sizes, subsizes, starts, MPI_ORDER_C, MPI_DOUBLE, &subarray);
+    MPI_Type_commit(&subarray);
+    MPI_Bcast(C, 1, subarray, sender_index, row_comm);
+    MPI_Type_free(&subarray);
+
+    column_offset += sub_n; /* increment offset for next iteration */
+  }
+
+  column_offset = 0; /* reset the offset to reuse it */
+  for (size_t sender_index = 0; sender_index < dims[0]; sender_index++) {
+    int local_M = m / dims[0] + (sender_index < m % dims[0]);                      /* compute how many rows the sender has */
+    MPI_Bcast(C + column_offset, local_M * n, MPI_DOUBLE, sender_index, col_comm); /* send them */
+    column_offset += local_M * n;                                                  /* increment the offset */
+  }
+}
+
 int phpc_gemm_summa_sequential(const MPI_Comm grid_comm, double *A, double *B, double *C, unsigned int m, unsigned int k, unsigned int n) {
   int rank;
   int dims[2], periods[2], coords[2];
@@ -230,11 +270,13 @@ int phpc_gemm_summa_sequential(const MPI_Comm grid_comm, double *A, double *B, d
     phpc_gemm_sequential(block_a, block_b, C, sub_m, sub_k, sub_n);
   }
 
+  /* gather the results */
+  phpc_gemm_summa_gather(row_comm, col_comm, dims, coords, C, sub_m, m, k, n);
+
   MPI_Comm_free(&row_comm);
   MPI_Comm_free(&col_comm);
-
-  free(buffer_a);
   free(buffer_b);
+  free(buffer_a);
 
   return 0;
 }
@@ -288,7 +330,9 @@ int phpc_gemm_summa_cuda(const MPI_Comm grid_comm, double *A, double *B, double 
   }
 
   /* copy result matrix to GPU */
-  cudaMemcpy(C_dev, C, m * n * sizeof(double), cudaMemcpyHostToDevice);
+  unsigned int row_shift = get_block_start_index(coords[0], m, dims[0]);
+  unsigned int column_shift = get_block_start_index(coords[1], n, dims[1]);
+  cudaMemcpy2D(C_dev, sub_n * sizeof(double), C + row_shift * n + column_shift, n * sizeof(double), sub_n * sizeof(double), sub_m, cudaMemcpyHostToDevice);
 
   /* create communicators along rows and columns */
   int remain_dims_row[2] = {0, 1};
@@ -346,15 +390,19 @@ int phpc_gemm_summa_cuda(const MPI_Comm grid_comm, double *A, double *B, double 
   }
 
   /* copy the final result from the GPU to the CPU */
-  cudaMemcpy(C, C_dev, sub_m * sub_n * sizeof(double), cudaMemcpyDeviceToHost);
+  cudaMemcpy2D(C + row_shift * n + column_shift, n * sizeof(double), C_dev, sub_n * sizeof(double), sub_n * sizeof(double), sub_m, cudaMemcpyDeviceToHost);
 
-  /* cleanup */
+  /* cleanup unused resources */
   cudaFree(C_dev);
   cudaFree(B_dev);
   cudaFree(A_dev);
   free(buffer_b);
   free(buffer_a);
 
+  /* gather the submatrices */
+  phpc_gemm_summa_gather(row_comm, col_comm, dims, coords, C, sub_m, m, k, n);
+
+  /* cleanup */
   MPI_Comm_free(&row_comm);
   MPI_Comm_free(&col_comm);
 
@@ -423,7 +471,9 @@ int phpc_gemm_summa_cublas(const MPI_Comm grid_comm, double *A, double *B, doubl
   }
 
   /* copy result matrix to GPU */
-  cudaMemcpy(C_dev, C, m * n * sizeof(double), cudaMemcpyHostToDevice);
+  unsigned int row_shift = get_block_start_index(coords[0], m, dims[0]);
+  unsigned int column_shift = get_block_start_index(coords[1], n, dims[1]);
+  cudaMemcpy2D(C_dev, sub_n * sizeof(double), C + row_shift * n + column_shift, n * sizeof(double), sub_n * sizeof(double), sub_m, cudaMemcpyHostToDevice);
 
   /* create communicators along rows and columns */
   int remain_dims_row[2] = {0, 1};
@@ -480,17 +530,21 @@ int phpc_gemm_summa_cublas(const MPI_Comm grid_comm, double *A, double *B, doubl
   }
 
   /* copy the final result from the GPU to the CPU */
-  cudaMemcpy(C, C_dev, sub_m * sub_n * sizeof(double), cudaMemcpyDeviceToHost);
+  cudaMemcpy2D(C, n * sizeof(double), C_dev, sub_n * sizeof(double), sub_n * sizeof(double), sub_m, cudaMemcpyDeviceToHost);
 
   /* cleanup */
   cublasDestroy(handle);
-  MPI_Comm_free(&row_comm);
-  MPI_Comm_free(&col_comm);
   cudaFree(C_dev);
   cudaFree(B_dev);
   cudaFree(A_dev);
   free(buffer_b);
   free(buffer_a);
+
+  /* gather the submatrices */
+  phpc_gemm_summa_gather(row_comm, col_comm, dims, coords, C, sub_m, m, k, n);
+
+  MPI_Comm_free(&row_comm);
+  MPI_Comm_free(&col_comm);
 
   return 0;
 }
