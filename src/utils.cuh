@@ -1,7 +1,10 @@
 #ifndef _PHPC_UTILS_H
 #define _PHPC_UTILS_H
 
+#include <cuda_runtime.h>
 #include <mpi.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #ifdef __cplusplus
 extern "C" {
