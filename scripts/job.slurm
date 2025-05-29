@@ -1,8 +1,7 @@
 #!/bin/bash
 #SBATCH -p gpus                        # Queue
-#SBATCH --ntasks=4                     # Total number of MPI tasks (one per GPU)
+#SBATCH --ntasks=4                     # Total number of MPI tasks
 #SBATCH --gpus-per-task=1              # GPUs per task
-#SBATCH --cpus-per-task=1              # Number of CPU per task
 #SBATCH --time=00:05:00                # Maximum time limit 5 min (up to 7 days)
 #SBATCH --output=logs/output.log       # Output file
 #SBATCH --error=logs/error.log         # Error file
