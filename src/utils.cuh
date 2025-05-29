@@ -1,12 +1,10 @@
 #ifndef _PHPC_UTILS_H
 #define _PHPC_UTILS_H
 
-#if defined(__has_include)
-#if __has_include(<mpi.h>)
-#include <mpi.h>
-#else
+#if defined(__has_include) && __has_include(<mpi/mpi.h>)
 #include <mpi/mpi.h>
-#endif
+#else
+#include <mpi.h>
 #endif
 #include <stdio.h>
 #include <stdlib.h>
