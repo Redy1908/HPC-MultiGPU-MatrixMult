@@ -64,15 +64,15 @@ __global__ void gemm_kernel(double *A, double *B, double *C, int M, int N, int K
   }
 }
 
-void phpc_gemm_summa_cuda(MPI_Comm grid_comm, double *A, double *B, double *C, int ld, int M, int K, int N, dim3 dim_block, dim3 dim_grid, int shared_mem_size) {
+void phpc_gemm_summa_cuda(MPI_Comm grid_comm, double *A, double *B, double *C, int ld, int N_glob, int Mglob, int Pglob, dim3 dim_block, dim3 dim_grid, int shared_mem_size) {
   int dims[2], periods[2], coords[2];
-  int i, k, c, r, K2;
+  int k_loop, c_col_rank, r_row_rank, K2_lcm;
 
-  int block_rows_A, block_rows_B;
-  int block_cols_A, block_cols_B;
+  int h_block_rows_A, block_rows_B_panel;
+  int block_cols_A_panel, h_block_cols_B;
 
-  double *A_col_host, *B_row_host, *A_start, *B_start;
-  double *d_A_col, *d_B_row, *d_C_block;
+  double *h_A_tile_start, *h_B_tile_start;
+  double *d_A_tile, *d_B_tile, *d_C_tile;
 
   MPI_Comm row_comm, col_comm;
 
@@ -81,70 +81,73 @@ void phpc_gemm_summa_cuda(MPI_Comm grid_comm, double *A, double *B, double *C, i
 
   MPI_Cart_get(grid_comm, 2, dims, periods, coords);
 
-  K2 = find_lcm(dims[0], dims[1]);
+  K2_lcm = find_lcm(dims[0], dims[1]);
 
-  block_rows_A = M / dims[0];
-  block_rows_B = K / K2;
-  block_cols_A = K / K2;
-  block_cols_B = N / dims[1];
+  h_block_rows_A = N_glob / dims[0];
+  block_cols_A_panel = Mglob / K2_lcm;
+  block_rows_B_panel = Mglob / K2_lcm;
+  h_block_cols_B = N_glob / dims[1];
 
-  A_col_host = (double *)malloc(block_rows_A * block_cols_A * sizeof(double));
+  cudaMalloc((void **)&d_A_tile, h_block_rows_A * block_cols_A_panel * sizeof(double));
+  cudaMalloc((void **)&d_B_tile, block_rows_B_panel * h_block_cols_B * sizeof(double));
+  cudaMalloc((void **)&d_C_tile, h_block_rows_A * h_block_cols_B * sizeof(double));
 
-  B_row_host = (double *)malloc(block_rows_B * block_cols_B * sizeof(double));
-
-  cudaMalloc((void **)&d_A_col, block_rows_A * block_cols_A * sizeof(double));
-  cudaMalloc((void **)&d_B_row, block_rows_B * block_cols_B * sizeof(double));
-  cudaMalloc((void **)&d_C_block, block_rows_A * block_cols_B * sizeof(double));
-
-  cudaMemset(d_C_block, 0, block_rows_A * block_cols_B * sizeof(double));
+  cudaMemset(d_C_tile, 0, h_block_rows_A * h_block_cols_B * sizeof(double));
 
   MPI_Cart_sub(grid_comm, remain_dims_row, &row_comm);
   MPI_Cart_sub(grid_comm, remain_dims_col, &col_comm);
 
-  A_start = A;
-  B_start = B;
+  h_A_tile_start = A;
+  h_B_tile_start = B;
 
-  for (k = 0; k < K2; k++) {
-    c = k % dims[1];
-    r = k % dims[0];
+  for (k_loop = 0; k_loop < K2_lcm; k_loop++) {
+    c_col_rank = k_loop % dims[1];
+    r_row_rank = k_loop % dims[0];
 
-    if (coords[1] == c) {
-      for (i = 0; i < block_rows_A; i++) {
-        memcpy(&A_col_host[i * block_cols_A], &A_start[i * ld], block_cols_A * sizeof(double));
-      }
-      A_start += block_cols_A;
+    if (coords[1] == c_col_rank) {
+      cudaMemcpy2D(d_A_tile,
+                   block_cols_A_panel * sizeof(double),
+                   h_A_tile_start,
+                   ld * sizeof(double),
+                   block_cols_A_panel * sizeof(double),
+                   h_block_rows_A,
+                   cudaMemcpyHostToDevice);
+      h_A_tile_start += block_cols_A_panel;
     }
 
-    if (coords[0] == r) {
-      for (i = 0; i < block_rows_B; i++) {
-        memcpy(&B_row_host[i * block_cols_B], &B_start[i * ld], block_cols_B * sizeof(double));
-      }
-      B_start += block_rows_B * ld;
+    if (coords[0] == r_row_rank) {
+      cudaMemcpy2D(d_B_tile,
+                   h_block_cols_B * sizeof(double),
+                   h_B_tile_start,
+                   ld * sizeof(double),
+                   h_block_cols_B * sizeof(double),
+                   block_rows_B_panel,
+                   cudaMemcpyHostToDevice);
+      h_B_tile_start += block_rows_B_panel * ld;
     }
 
-    MPI_Bcast(A_col_host, block_rows_A * block_cols_A, MPI_DOUBLE, c, row_comm);
-    MPI_Bcast(B_row_host, block_rows_B * block_cols_B, MPI_DOUBLE, r, col_comm);
+    MPI_Bcast(d_A_tile, h_block_rows_A * block_cols_A_panel, MPI_DOUBLE, c_col_rank, row_comm);
+    MPI_Bcast(d_B_tile, block_rows_B_panel * h_block_cols_B, MPI_DOUBLE, r_row_rank, col_comm);
 
-    cudaMemcpy(d_A_col, A_col_host, block_rows_A * block_cols_A * sizeof(double), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_B_row, B_row_host, block_rows_B * block_cols_B * sizeof(double), cudaMemcpyHostToDevice);
+    gemm_kernel<<<dim_grid, dim_block, shared_mem_size>>>(
+        d_A_tile, d_B_tile, d_C_tile,
+        h_block_rows_A, h_block_cols_B, block_cols_A_panel);
 
-    dim_block.z = 1;
-    dim_grid.z = 1;
-    gemm_kernel<<<dim_grid, dim_block, shared_mem_size>>>(d_A_col, d_B_row, d_C_block, block_rows_A, block_cols_B, block_cols_A);
-
-    cudaGetLastError();
     cudaDeviceSynchronize();
   }
 
-  cudaMemcpy(C, d_C_block, block_rows_A * block_cols_B * sizeof(double), cudaMemcpyDeviceToHost);
+  cudaMemcpy2D(C,
+               ld * sizeof(double),
+               d_C_tile,
+               h_block_cols_B * sizeof(double),
+               h_block_cols_B * sizeof(double),
+               h_block_rows_A,
+               cudaMemcpyDeviceToHost);
 
   MPI_Comm_free(&row_comm);
   MPI_Comm_free(&col_comm);
 
-  free(A_col_host);
-  free(B_row_host);
-
-  cudaFree(d_A_col);
-  cudaFree(d_B_row);
-  cudaFree(d_C_block);
+  cudaFree(d_A_tile);
+  cudaFree(d_B_tile);
+  cudaFree(d_C_tile);
 }

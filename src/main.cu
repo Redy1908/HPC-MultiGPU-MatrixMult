@@ -75,7 +75,7 @@ int main(int argc, char *argv[]) {
   check_threads_per_block(prop, tile_width, rank);
   check_shared_memory_usage(prop, tile_width, rank);
   dim_block = dim3(tile_width, tile_width, 1);
-  dim_grid = dim3(4, 4, 1);
+  dim_grid = dim3(1, 1, 1);
   shared_mem_size = 2 * tile_width * tile_width * sizeof(double);
 
   phpc_gemm_summa_cuda(grid_comm, A, B, C, ld, Nglob, Mglob, Pglob, dim_block, dim_grid, shared_mem_size);
@@ -90,8 +90,8 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  MPI_Barrier(grid_comm);
   if (rank == 0) printf("Corectness test passed.\n");
+  MPI_Barrier(grid_comm);
 
   // ==================================================
   // Test di efficienza
