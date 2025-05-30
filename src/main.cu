@@ -1,16 +1,13 @@
-#include <math.h>
-#include <mpi.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
 #include "phpc_matrix_operations.cuh"
 #include "utils.cuh"
 
 int main(int argc, char *argv[]) {
-  int i, j, M, K, N;
+  int i, j, Nglob, Mglob, Pglob, ld;
   double *A, *B, *C;
   int dims[2], period[2], coord[2], rank, size;
+  double time1, time2, Ndouble;
+  dim3 dim_block, dim_grid;
+  int shared_mem_size;
   MPI_Comm grid_comm;
 
   MPI_Init(&argc, &argv);
@@ -33,53 +30,126 @@ int main(int argc, char *argv[]) {
   period[0] = 1;
   period[1] = 1;
   MPI_Cart_create(MPI_COMM_WORLD, 2, dims, period, 0, &grid_comm);
-  MPI_Cart_coords(grid_comm, rank, 2, coord);
 
-  read_matrix_dimensions("inputs/A.bin", &M, &K, rank);
-  read_matrix_dimensions("inputs/B.bin", &K, &N, rank);
+  Nglob = 2;
+  Mglob = 4;
+  Pglob = 4;
 
   int lcm = find_lcm(dims[0], dims[1]);
 
-  C = (double *)malloc(M * N * sizeof(double));
-  MALLOC_CHECK(C, rank, "C");
+  ld = 6444;
+  A = (double *)malloc(ld * ld * sizeof(double));
+  B = (double *)malloc(ld * ld * sizeof(double));
+  C = (double *)malloc(ld * ld * sizeof(double));
 
-  int local_M = M / dims[0];
-  int local_K = K / lcm;
-  int local_N = N / dims[1];
+  MPI_Cart_coords(grid_comm, rank, 2, coord);
 
-  read_matrix_A_block("inputs/A.bin", &A, M, K, local_M, local_K, coord[0], lcm, rank);
-  read_matrix_B_block("inputs/B.bin", &B, K, N, local_K, local_N, coord[1], lcm, rank);
-  memset(C, 0, sizeof(double) * M * N);
+  // ==================================================
+  // Test di correttezza
+  // ==================================================
+  Nglob = 2;
+  Mglob = 4;
+  Pglob = 4;
 
-  cudaDeviceProp prop = set_gpu_and_get_properties(rank);
-
-  dim2 grid_size(1, 1);
-  unsigned int block_width = 4;
-
-  check_threads_per_block(prop, block_width, rank);
-  check_shared_memory_usage(prop, block_width, rank);
-
-  double start = get_cur_time();
-
-  phpc_gemm_summa_cuda(grid_comm, A, B, C, M, K, N, grid_size, block_width);
-
-  double end = get_cur_time();
-  double elapsed = end - start;
-
-  if (rank == 0) {
-    printf("Result\n");
-    for (i = 0; i < M; i++) {
-      for (j = 0; j < N; j++)
-        printf("%lf ", C[i * N + j]);
-
-      printf("\n");
+  for (i = 0; i < Nglob / dims[0]; i++) {
+    for (j = 0; j < Mglob / lcm; j++) {
+      A[i * ld + j] = 2;
     }
   }
 
-  free(A);
-  free(B);
-  free(C);
+  for (i = 0; i < Mglob / lcm; i++) {
+    for (j = 0; j < Pglob / dims[1]; j++) {
+      B[i * ld + j] = 2;
+    }
+  }
 
+  for (i = 0; i < Nglob / dims[0]; i++) {
+    for (j = 0; j < Pglob / dims[1]; j++) {
+      C[i * ld + j] = 0.0;
+    }
+  }
+
+  cudaDeviceProp prop = set_gpu_and_get_properties(rank);
+
+  int tile_width = 32;
+  check_threads_per_block(prop, tile_width, rank);
+  check_shared_memory_usage(prop, tile_width, rank);
+  dim_block = dim3(tile_width, tile_width, 1);
+  dim_grid = dim3(4, 4, 1);
+  shared_mem_size = 2 * tile_width * tile_width * sizeof(double);
+
+  phpc_gemm_summa_cuda(grid_comm, A, B, C, ld, Nglob, Mglob, Pglob, dim_block, dim_grid, shared_mem_size);
+
+  MPI_Barrier(grid_comm);
+
+  for (i = 0; i < Nglob / dims[0]; i++) {
+    for (j = 0; j < Pglob / dims[1]; j++) {
+      if (C[i * ld + j] != 16.0) {
+        fprintf(stderr, "Correcteness error at rank %d, C[%d][%d] = %f\n", rank, i, j, C[i * ld + j]);
+      }
+    }
+  }
+
+  MPI_Barrier(grid_comm);
+  if (rank == 0) printf("Corectness test passed.\n");
+
+  // ==================================================
+  // Test di efficienza
+  // ==================================================
+
+  srand(0);
+  for (i = 0; i < ld; i++) {
+    for (j = 0; j < ld; j++) {
+      *(A + i * ld + j) = (float)rand() / RAND_MAX;
+      *(B + i * ld + j) = (float)rand() / RAND_MAX;
+      *(C + i * ld + j) = (float)rand() / RAND_MAX;
+    }
+  }
+
+  if (rank == 0) {
+    printf("               N       T   Time       Gflops\n");
+  }
+
+  // test di efficienza al crescere delle dimensioni della metrice ed il numero di thread
+  for (Nglob = 2048; Nglob <= 2048 * 3; Nglob = Nglob + 2048) {
+    Ndouble = Nglob;
+
+    // test con 1 thread
+    MPI_Barrier(MPI_COMM_WORLD);
+    tile_width = 1;
+    check_threads_per_block(prop, tile_width, rank);
+    check_shared_memory_usage(prop, tile_width, rank);
+    dim_block = dim3(tile_width, tile_width, 1);
+    dim_grid = dim3(1, 1, 1);
+    shared_mem_size = 2 * tile_width * tile_width * sizeof(double);
+
+    time1 = get_cur_time();
+    phpc_gemm_summa_cuda(grid_comm, A, B, C, ld, Nglob, Mglob, Pglob, dim_block, dim_grid, shared_mem_size);
+    time2 = get_cur_time() - time1;
+    printf(" proc = %d:   %4d   %4d   %e  %f \n", rank, Nglob, dim_block.x * dim_block.y * dim_grid.x * dim_grid.y, time2, 2 * Ndouble * Ndouble * Ndouble / time2 / 1.e9);
+
+    // test con 1024 thread
+    MPI_Barrier(MPI_COMM_WORLD);
+    tile_width = 32;
+    check_threads_per_block(prop, tile_width, rank);
+    check_shared_memory_usage(prop, tile_width, rank);
+    dim_block = dim3(tile_width, tile_width, 1);
+    dim_grid = dim3(1, 1, 1);
+    shared_mem_size = 2 * tile_width * tile_width * sizeof(double);
+
+    time1 = get_cur_time();
+    phpc_gemm_summa_cuda(grid_comm, A, B, C, ld, Nglob, Mglob, Pglob, dim_block, dim_grid, shared_mem_size);
+    time2 = get_cur_time() - time1;
+    printf(" proc = %d:   %4d   %4d   %e  %f \n", rank, Nglob, dim_block.x * dim_block.y * dim_grid.x * dim_grid.y, time2, 2 * Ndouble * Ndouble * Ndouble / time2 / 1.e9);
+
+    // Altri test qui chiamare MPI_Barrier(MPI_COMM_WORLD); prima di ogni test
+
+    // questa è la dimensione ottimale della griglia definita sui blocchi locali all'interno di summa dovremmo fare almeno 1 test con la dimensione ottimale da capire come
+    // dim3 dim_grid(ceil(block_cols_B / (float)tile_width), ceil(block_rows_A / (float)tile_width), 1);
+  }
+
+  MPI_Barrier(MPI_COMM_WORLD);
   MPI_Finalize();
+
   return 0;
 }

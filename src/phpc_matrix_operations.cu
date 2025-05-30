@@ -6,14 +6,6 @@
 #include "phpc_matrix_operations.cuh"
 #include "utils.cuh"
 
-#define IDX(row, col, num_cols) ((row) * (num_cols) + (col))
-
-unsigned int get_block_start_index(unsigned int i, unsigned int width, unsigned int n) {
-  unsigned int q = width / n;
-  unsigned int r = width % n;
-  return i * q + min(i, r);
-}
-
 __global__ void gemm_kernel(double *A, double *B, double *C, int M, int N, int K) {
   extern __shared__ double shared_mem[];
 
@@ -72,484 +64,87 @@ __global__ void gemm_kernel(double *A, double *B, double *C, int M, int N, int K
   }
 }
 
-int phpc_gemm_sequential(const double *A, const double *B, double *C, unsigned int m, unsigned int k, unsigned int n) {
-  for (unsigned int i = 0; i < m; ++i)
-    for (unsigned int j = 0; j < n; ++j)
-      for (unsigned int l = 0; l < k; ++l)
-        C[IDX(i, j, n)] += A[IDX(i, l, k)] * B[IDX(l, j, n)];
-
-  return 0;
-}
-
-int phpc_gemm_cuda(const double *A, const double *B, double *C, unsigned int m, unsigned int k, unsigned int n, dim2 grid_size, unsigned int block_width) {
-  double *A_dev, *B_dev, *C_dev;
-  cudaMalloc(&A_dev, m * k * sizeof(double));
-  cudaMalloc(&B_dev, k * n * sizeof(double));
-  cudaMalloc(&C_dev, m * n * sizeof(double));
-
-  if (A_dev == NULL || B_dev == NULL || C_dev == NULL) {
-    cudaFree(A_dev);
-    cudaFree(B_dev);
-    cudaFree(C_dev);
-    return 1;
-  }
-
-  cudaMemcpy(A_dev, A, m * k * sizeof(double), cudaMemcpyHostToDevice);
-  cudaMemcpy(B_dev, B, k * n * sizeof(double), cudaMemcpyHostToDevice);
-  cudaMemcpy(C_dev, C, m * n * sizeof(double), cudaMemcpyHostToDevice);
-
-  uint shared_mem_size = 2 * block_width * block_width * sizeof(double);
-  dim3 kernel_grid_size(grid_size.x, grid_size.y, 1);
-  dim3 kernel_block_size(block_width, block_width, 1);
-  gemm_kernel<<<kernel_grid_size, kernel_block_size, shared_mem_size>>>(A_dev, B_dev, C_dev, m, n, k);
-  cudaDeviceSynchronize();
-
-  cudaMemcpy(C, C_dev, m * n * sizeof(double), cudaMemcpyDeviceToHost);
-
-  cudaFree(A_dev);
-  cudaFree(B_dev);
-  cudaFree(C_dev);
-
-  return 0;
-}
-
-int phpc_gemm_cublas(const double *A, const double *B, double *C, int m, int k, int n) {
-  if (m < 0 || k < 0 || n < 0)
-    return 1;
-
-  double *A_dev, *B_dev, *C_dev;
-
-  if (cudaMalloc(&A_dev, m * k * sizeof(double)) != cudaSuccess)
-    return 1;
-
-  if (cudaMalloc(&B_dev, k * n * sizeof(double)) != cudaSuccess) {
-    cudaFree(A_dev);
-    return 1;
-  }
-
-  if (cudaMalloc(&C_dev, m * n * sizeof(double)) != cudaSuccess) {
-    cudaFree(B_dev);
-    cudaFree(A_dev);
-    return 1;
-  }
-
-  cublasHandle_t handle;
-  if (cublasCreate(&handle) != CUBLAS_STATUS_SUCCESS) {
-    cudaFree(C_dev);
-    cudaFree(B_dev);
-    cudaFree(A_dev);
-    return 1;
-  }
-
-  cudaMemcpy(A_dev, A, m * k * sizeof(double), cudaMemcpyHostToDevice);
-  cudaMemcpy(B_dev, B, k * n * sizeof(double), cudaMemcpyHostToDevice);
-  cudaMemcpy(C_dev, C, m * n * sizeof(double), cudaMemcpyHostToDevice);
-
-  const double alpha = 1;
-  const double beta = 1;
-
-  /* https://stackoverflow.com/a/56064726/17731255 */
-  if (cublasDgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, n, m, k, &alpha, B_dev, n, A_dev, k, &beta, C_dev, n) != CUBLAS_STATUS_SUCCESS) {
-    cublasDestroy(handle);
-    cudaFree(C_dev);
-    cudaFree(B_dev);
-    cudaFree(A_dev);
-    return 1;
-  }
-
-  cudaDeviceSynchronize();
-  cudaMemcpy(C, C_dev, m * n * sizeof(double), cudaMemcpyDeviceToHost);
-
-  cublasDestroy(handle);
-  cudaFree(C_dev);
-  cudaFree(B_dev);
-  cudaFree(A_dev);
-
-  return 0;
-}
-
-void phpc_gemm_summa_gather(MPI_Comm row_comm, MPI_Comm col_comm, const int *dims, const int *coords, double *C, int sub_m, int m, int k, int n) {
-  /**
-   * gather the results in all processes
-   * first we collect the blocks of the processes in the same row
-   * then we collect the bigger blocks in the same column
-   */
-
-  int column_offset = 0; /* column offset to receive buffer */
-  int row_offset = get_block_start_index(coords[0], m, dims[0]);
-
-  for (size_t sender_index = 0; sender_index < dims[1]; sender_index++) {
-    int sub_n = n / dims[1] + (sender_index < n % dims[1]);
-
-    int sizes[2] = {m, n};                       /* original sizes of the buffer */
-    int starts[2] = {row_offset, column_offset}; /* offset of the broadcast block */
-    int subsizes[2] = {sub_m, sub_n};            /* sizes of the broadcast block */
-
-    MPI_Datatype subarray;
-    MPI_Type_create_subarray(2, sizes, subsizes, starts, MPI_ORDER_C, MPI_DOUBLE, &subarray);
-    MPI_Type_commit(&subarray);
-    MPI_Bcast(C, 1, subarray, sender_index, row_comm);
-    MPI_Type_free(&subarray);
-
-    column_offset += sub_n; /* increment offset for next iteration */
-  }
-
-  column_offset = 0; /* reset the offset to reuse it */
-  for (size_t sender_index = 0; sender_index < dims[0]; sender_index++) {
-    int local_M = m / dims[0] + (sender_index < m % dims[0]);                      /* compute how many rows the sender has */
-    MPI_Bcast(C + column_offset, local_M * n, MPI_DOUBLE, sender_index, col_comm); /* send them */
-    column_offset += local_M * n;                                                  /* increment the offset */
-  }
-}
-
-int phpc_gemm_summa_sequential(const MPI_Comm grid_comm, double *A, double *B, double *C, unsigned int m, unsigned int k, unsigned int n) {
-  int rank;
+void phpc_gemm_summa_cuda(MPI_Comm grid_comm, double *A, double *B, double *C, int ld, int M, int K, int N, dim3 dim_block, dim3 dim_grid, int shared_mem_size) {
   int dims[2], periods[2], coords[2];
+  int i, k, c, r, K2;
 
-  MPI_Comm_rank(grid_comm, &rank);
-  MPI_Cart_get(grid_comm, 2, dims, periods, coords);
+  int block_rows_A, block_rows_B;
+  int block_cols_A, block_cols_B;
 
-  int K2 = find_lcm(dims[0], dims[1]);
+  double *A_col_host, *B_row_host, *A_start, *B_start;
+  double *d_A_col, *d_B_row, *d_C_block;
 
-  uint sub_m = m / dims[0] + (coords[0] < m % dims[0]); /* numbers of row for the A sub-block */
-  uint sub_n = n / dims[1] + (coords[1] < n % dims[1]); /* numbers of columns for the B sub-block */
-  uint max_sub_k = k / K2 + (k % K2 > 0);
+  MPI_Comm row_comm, col_comm;
 
-  double *buffer_a = (double *)malloc(sub_m * max_sub_k * sizeof(double));
-  double *buffer_b = (double *)malloc(max_sub_k * sub_n * sizeof(double));
-
-  if (buffer_a == NULL || buffer_b == NULL) {
-    free(buffer_a);
-    free(buffer_b);
-    return 1;
-  }
-
-  /* create communicators along rows and columns */
   int remain_dims_row[2] = {0, 1};
   int remain_dims_col[2] = {1, 0};
-  MPI_Comm row_comm, col_comm;
+
+  MPI_Cart_get(grid_comm, 2, dims, periods, coords);
+
+  K2 = find_lcm(dims[0], dims[1]);
+
+  block_rows_A = M / dims[0];
+  block_rows_B = K / K2;
+  block_cols_A = K / K2;
+  block_cols_B = N / dims[1];
+
+  A_col_host = (double *)malloc(block_rows_A * block_cols_A * sizeof(double));
+
+  B_row_host = (double *)malloc(block_rows_B * block_cols_B * sizeof(double));
+
+  cudaMalloc((void **)&d_A_col, block_rows_A * block_cols_A * sizeof(double));
+  cudaMalloc((void **)&d_B_row, block_rows_B * block_cols_B * sizeof(double));
+  cudaMalloc((void **)&d_C_block, block_rows_A * block_cols_B * sizeof(double));
+
+  cudaMemset(d_C_block, 0, block_rows_A * block_cols_B * sizeof(double));
+
   MPI_Cart_sub(grid_comm, remain_dims_row, &row_comm);
   MPI_Cart_sub(grid_comm, remain_dims_col, &col_comm);
 
-  for (uint i = 0; i < K2; i++) {
-    uint r = i % dims[0];
-    uint c = i % dims[1];
+  A_start = A;
+  B_start = B;
 
-    /* calculate the k of the sending process */
-    uint sub_k = k / K2 + (i < k % K2);
-
-    /**
-     * NOTE 2025-05-22 (Salvatore)
-     * the following assumes that blocks assigned to the process are stored contiguosly one after the other and NOT interleaved
-     * wrong format: row 0 of block 0, row 0 of block 1, row 1 of block 0, row 1 of block 1, ...
-     * correct format: row 0 of block 0, row 1 of block 0, row n of block 0, row 0 of block 1, ...
-     */
-
-    double *block_a, *block_b;
+  for (k = 0; k < K2; k++) {
+    c = k % dims[1];
+    r = k % dims[0];
 
     if (coords[1] == c) {
-      block_a = A;        /* we are sending the block */
-      A += sub_m * sub_k; /* we may have to send again in the future, skip the pointer to the start of the other block */
-    } else {
-      block_a = buffer_a; /* we are receiving, prepare the buffer */
+      for (i = 0; i < block_rows_A; i++) {
+        memcpy(&A_col_host[i * block_cols_A], &A_start[i * ld], block_cols_A * sizeof(double));
+      }
+      A_start += block_cols_A;
     }
 
     if (coords[0] == r) {
-      block_b = B;        /* we are sending the block */
-      B += sub_k * sub_n; /* we may have to send again in the future, skip the pointer to the start of the other block */
-    } else {
-      block_b = buffer_b; /* we are receiving, prepare the buffer */
+      for (i = 0; i < block_rows_B; i++) {
+        memcpy(&B_row_host[i * block_cols_B], &B_start[i * ld], block_cols_B * sizeof(double));
+      }
+      B_start += block_rows_B * ld;
     }
 
-    /* a process broadcasts one of its blocks of A on all the other processes in the same row */
-    MPI_Bcast(block_a, sub_m * sub_k, MPI_DOUBLE, c, row_comm);
+    MPI_Bcast(A_col_host, block_rows_A * block_cols_A, MPI_DOUBLE, c, row_comm);
+    MPI_Bcast(B_row_host, block_rows_B * block_cols_B, MPI_DOUBLE, r, col_comm);
 
-    /* a process broadcasts one of its blocks of B on all the other processes in the same column */
-    MPI_Bcast(block_b, sub_k * sub_n, MPI_DOUBLE, r, col_comm);
+    cudaMemcpy(d_A_col, A_col_host, block_rows_A * block_cols_A * sizeof(double), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_B_row, B_row_host, block_rows_B * block_cols_B * sizeof(double), cudaMemcpyHostToDevice);
 
-    /* compute the submatrices product */
-    phpc_gemm_sequential(block_a, block_b, C, sub_m, sub_k, sub_n);
-  }
+    dim_block.z = 1;
+    dim_grid.z = 1;
+    gemm_kernel<<<dim_grid, dim_block, shared_mem_size>>>(d_A_col, d_B_row, d_C_block, block_rows_A, block_cols_B, block_cols_A);
 
-  /* gather the results */
-  phpc_gemm_summa_gather(row_comm, col_comm, dims, coords, C, sub_m, m, k, n);
-
-  MPI_Comm_free(&row_comm);
-  MPI_Comm_free(&col_comm);
-  free(buffer_b);
-  free(buffer_a);
-
-  return 0;
-}
-
-int phpc_gemm_summa_cuda(const MPI_Comm grid_comm, double *A, double *B, double *C, unsigned int m, unsigned int k, unsigned int n, dim2 grid_size, unsigned int block_width) {
-  int rank;
-  int dims[2], periods[2], coords[2];
-
-  MPI_Comm_rank(grid_comm, &rank);
-  MPI_Cart_get(grid_comm, 2, dims, periods, coords);
-
-  int K2 = find_lcm(dims[0], dims[1]);
-
-  uint sub_m = m / dims[0] + (coords[0] < m % dims[0]); /* numbers of row for the A sub-block */
-  uint sub_n = n / dims[1] + (coords[1] < n % dims[1]); /* numbers of columns for the B sub-block */
-  uint max_sub_k = k / K2 + (k % K2 > 0);
-
-  double *buffer_a = (double *)malloc(sub_m * max_sub_k * sizeof(double));
-  double *buffer_b = (double *)malloc(max_sub_k * sub_n * sizeof(double));
-
-  if (buffer_a == NULL || buffer_b == NULL) {
-    free(buffer_b);
-    free(buffer_a);
-    return 1;
-  }
-
-  double *A_dev, *B_dev, *C_dev;
-
-  if (cudaMalloc(&A_dev, sub_m * max_sub_k * sizeof(double)) != cudaSuccess) {
-    cudaFree(A_dev);
-    free(buffer_b);
-    free(buffer_a);
-    return 1;
-  }
-
-  if (cudaMalloc(&B_dev, max_sub_k * sub_n * sizeof(double)) != cudaSuccess) {
-    cudaFree(B_dev);
-    cudaFree(A_dev);
-    free(buffer_b);
-    free(buffer_a);
-    return 1;
-  }
-
-  if (cudaMalloc(&C_dev, sub_m * sub_n * sizeof(double)) != cudaSuccess) {
-    cudaFree(C_dev);
-    cudaFree(B_dev);
-    cudaFree(A_dev);
-    free(buffer_b);
-    free(buffer_a);
-    return 1;
-  }
-
-  /* copy result matrix to GPU */
-  unsigned int row_shift = get_block_start_index(coords[0], m, dims[0]);
-  unsigned int column_shift = get_block_start_index(coords[1], n, dims[1]);
-  cudaMemcpy2D(C_dev, sub_n * sizeof(double), C + row_shift * n + column_shift, n * sizeof(double), sub_n * sizeof(double), sub_m, cudaMemcpyHostToDevice);
-
-  /* create communicators along rows and columns */
-  int remain_dims_row[2] = {0, 1};
-  int remain_dims_col[2] = {1, 0};
-  MPI_Comm row_comm, col_comm;
-  MPI_Cart_sub(grid_comm, remain_dims_row, &row_comm);
-  MPI_Cart_sub(grid_comm, remain_dims_col, &col_comm);
-
-  for (uint i = 0; i < K2; i++) {
-    uint r = i % dims[0];
-    uint c = i % dims[1];
-
-    /* calculate the k of the sending process */
-    uint sub_k = k / K2 + (i < k % K2);
-
-    /**
-     * NOTE 2025-05-22 (Salvatore)
-     * the following assumes that blocks assigned to the process are stored contiguosly one after the other and NOT interleaved
-     * wrong format: row 0 of block 0, row 0 of block 1, row 1 of block 0, row 1 of block 1, ...
-     * correct format: row 0 of block 0, row 1 of block 0, row n of block 0, row 0 of block 1, ...
-     */
-
-    double *block_a, *block_b;
-
-    if (coords[1] == c) {
-      block_a = A;        /* we are sending the block */
-      A += sub_m * sub_k; /* we may have to send again in the future, skip the pointer to the start of the other block */
-    } else {
-      block_a = buffer_a; /* we are receiving, prepare the buffer */
-    }
-
-    if (coords[0] == r) {
-      block_b = B;        /* we are sending the block */
-      B += sub_k * sub_n; /* we may have to send again in the future, skip the pointer to the start of the other block */
-    } else {
-      block_b = buffer_b; /* we are receiving, prepare the buffer */
-    }
-
-    /* a process broadcasts one of its blocks of A on all the other processes in the same row */
-    MPI_Bcast(block_a, sub_m * sub_k, MPI_DOUBLE, c, row_comm);
-
-    /* a process broadcasts one of its blocks of B on all the other processes in the same column */
-    MPI_Bcast(block_b, sub_k * sub_n, MPI_DOUBLE, r, col_comm);
-
-    /* copy blocks from CPU to GPU */
-    cudaMemcpy(A_dev, block_a, sub_m * sub_k * sizeof(double), cudaMemcpyHostToDevice);
-    cudaMemcpy(B_dev, block_b, sub_k * sub_n * sizeof(double), cudaMemcpyHostToDevice);
-
-    /* compute product on the GPU */
-    uint shared_mem_size = 2 * block_width * block_width * sizeof(double);
-    dim3 kernel_grid_size(grid_size.x, grid_size.y, 1);
-    dim3 kernel_block_size(block_width, block_width, 1);
-    gemm_kernel<<<kernel_grid_size, kernel_block_size, shared_mem_size>>>(A_dev, B_dev, C_dev, sub_m, sub_n, sub_k);
+    cudaGetLastError();
     cudaDeviceSynchronize();
   }
 
-  /* copy the final result from the GPU to the CPU */
-  cudaMemcpy2D(C + row_shift * n + column_shift, n * sizeof(double), C_dev, sub_n * sizeof(double), sub_n * sizeof(double), sub_m, cudaMemcpyDeviceToHost);
-
-  /* cleanup unused resources */
-  cudaFree(C_dev);
-  cudaFree(B_dev);
-  cudaFree(A_dev);
-  free(buffer_b);
-  free(buffer_a);
-
-  /* gather the submatrices */
-  phpc_gemm_summa_gather(row_comm, col_comm, dims, coords, C, sub_m, m, k, n);
-
-  /* cleanup */
-  MPI_Comm_free(&row_comm);
-  MPI_Comm_free(&col_comm);
-
-  return 0;
-}
-
-int phpc_gemm_summa_cublas(const MPI_Comm grid_comm, double *A, double *B, double *C, int m, int k, int n) {
-  if (m < 0 || k < 0 || n < 0)
-    return 1;
-
-  int rank;
-  int dims[2], periods[2], coords[2];
-
-  MPI_Comm_rank(grid_comm, &rank);
-  MPI_Cart_get(grid_comm, 2, dims, periods, coords);
-
-  int K2 = find_lcm(dims[0], dims[1]);
-
-  uint sub_m = m / dims[0] + (coords[0] < m % dims[0]); /* numbers of row for the A sub-block */
-  uint sub_n = n / dims[1] + (coords[1] < n % dims[1]); /* numbers of columns for the B sub-block */
-  uint max_sub_k = k / K2 + (k % K2 > 0);
-
-  double *buffer_a = (double *)malloc(sub_m * max_sub_k * sizeof(double));
-  double *buffer_b = (double *)malloc(max_sub_k * sub_n * sizeof(double));
-
-  if (buffer_a == NULL || buffer_b == NULL) {
-    free(buffer_b);
-    free(buffer_a);
-    return 1;
-  }
-
-  double *A_dev, *B_dev, *C_dev;
-
-  if (cudaMalloc(&A_dev, sub_m * max_sub_k * sizeof(double)) != cudaSuccess) {
-    cudaFree(A_dev);
-    free(buffer_b);
-    free(buffer_a);
-    return 1;
-  }
-
-  if (cudaMalloc(&B_dev, max_sub_k * sub_n * sizeof(double)) != cudaSuccess) {
-    cudaFree(B_dev);
-    cudaFree(A_dev);
-    free(buffer_b);
-    free(buffer_a);
-    return 1;
-  }
-
-  if (cudaMalloc(&C_dev, sub_m * sub_n * sizeof(double)) != cudaSuccess) {
-    cudaFree(C_dev);
-    cudaFree(B_dev);
-    cudaFree(A_dev);
-    free(buffer_b);
-    free(buffer_a);
-    return 1;
-  }
-
-  cublasHandle_t handle;
-  if (cublasCreate(&handle) != CUBLAS_STATUS_SUCCESS) {
-    cudaFree(C_dev);
-    cudaFree(B_dev);
-    cudaFree(A_dev);
-    free(buffer_b);
-    free(buffer_a);
-    return 1;
-  }
-
-  /* copy result matrix to GPU */
-  unsigned int row_shift = get_block_start_index(coords[0], m, dims[0]);
-  unsigned int column_shift = get_block_start_index(coords[1], n, dims[1]);
-  cudaMemcpy2D(C_dev, sub_n * sizeof(double), C + row_shift * n + column_shift, n * sizeof(double), sub_n * sizeof(double), sub_m, cudaMemcpyHostToDevice);
-
-  /* create communicators along rows and columns */
-  int remain_dims_row[2] = {0, 1};
-  int remain_dims_col[2] = {1, 0};
-  MPI_Comm row_comm, col_comm;
-  MPI_Cart_sub(grid_comm, remain_dims_row, &row_comm);
-  MPI_Cart_sub(grid_comm, remain_dims_col, &col_comm);
-
-  const double alpha = 1;
-  const double beta = 1;
-
-  for (uint i = 0; i < K2; i++) {
-    uint r = i % dims[0];
-    uint c = i % dims[1];
-
-    /* calculate the k of the sending process */
-    uint sub_k = k / K2 + (i < k % K2);
-
-    /**
-     * NOTE 2025-05-22 (Salvatore)
-     * the following assumes that blocks assigned to the process are stored contiguosly one after the other and NOT interleaved
-     * wrong format: row 0 of block 0, row 0 of block 1, row 1 of block 0, row 1 of block 1, ...
-     * correct format: row 0 of block 0, row 1 of block 0, row n of block 0, row 0 of block 1, ...
-     */
-
-    double *block_a, *block_b;
-
-    if (coords[1] == c) {
-      block_a = A;        /* we are sending the block */
-      A += sub_m * sub_k; /* we may have to send again in the future, skip the pointer to the start of the other block */
-    } else {
-      block_a = buffer_a; /* we are receiving, prepare the buffer */
-    }
-
-    if (coords[0] == r) {
-      block_b = B;        /* we are sending the block */
-      B += sub_k * sub_n; /* we may have to send again in the future, skip the pointer to the start of the other block */
-    } else {
-      block_b = buffer_b; /* we are receiving, prepare the buffer */
-    }
-
-    /* a process broadcasts one of its blocks of A on all the other processes in the same row */
-    MPI_Bcast(block_a, sub_m * sub_k, MPI_DOUBLE, c, row_comm);
-
-    /* a process broadcasts one of its blocks of B on all the other processes in the same column */
-    MPI_Bcast(block_b, sub_k * sub_n, MPI_DOUBLE, r, col_comm);
-
-    /* copy blocks from CPU to GPU */
-    cudaMemcpy(A_dev, block_a, sub_m * sub_k * sizeof(double), cudaMemcpyHostToDevice);
-    cudaMemcpy(B_dev, block_b, sub_k * sub_n * sizeof(double), cudaMemcpyHostToDevice);
-
-    /* compute product on the GPU */
-    cublasDgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, sub_n, sub_m, sub_k, &alpha, block_b, sub_n, block_a, sub_k, &beta, C_dev, sub_n);
-  }
-
-  /* copy the final result from the GPU to the CPU */
-  cudaMemcpy2D(C, n * sizeof(double), C_dev, sub_n * sizeof(double), sub_n * sizeof(double), sub_m, cudaMemcpyDeviceToHost);
-
-  printf("%s\n", cudaGetErrorName(cudaGetLastError()));
-
-  /* cleanup */
-  cublasDestroy(handle);
-  cudaFree(C_dev);
-  cudaFree(B_dev);
-  cudaFree(A_dev);
-  free(buffer_b);
-  free(buffer_a);
-
-  /* gather the submatrices */
-  phpc_gemm_summa_gather(row_comm, col_comm, dims, coords, C, sub_m, m, k, n);
+  cudaMemcpy(C, d_C_block, block_rows_A * block_cols_B * sizeof(double), cudaMemcpyDeviceToHost);
 
   MPI_Comm_free(&row_comm);
   MPI_Comm_free(&col_comm);
 
-  return 0;
-}
+  free(A_col_host);
+  free(B_row_host);
 
-#undef IDX
+  cudaFree(d_A_col);
+  cudaFree(d_B_row);
+  cudaFree(d_C_block);
+}
