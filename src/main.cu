@@ -124,7 +124,7 @@ int main(int argc, char *argv[]) {
     shared_mem_size = 2 * tile_width * tile_width * sizeof(double);
 
     time1 = get_cur_time();
-    phpc_gemm_summa_cuda(grid_comm, A, B, C, ld, Nglob, Mglob, Pglob, dim_block, dim_grid, shared_mem_size);
+    phpc_gemm_summa_cuda(grid_comm, A, B, C, ld, Nglob, Nglob, Nglob, dim_block, dim_grid, shared_mem_size);
     time2 = get_cur_time() - time1;
     printf(" proc = %d:   %4d   %4d   %e  %f \n", rank, Nglob, dim_block.x * dim_block.y * dim_grid.x * dim_grid.y, time2, 2 * Ndouble * Ndouble * Ndouble / time2 / 1.e9);
 
@@ -138,7 +138,7 @@ int main(int argc, char *argv[]) {
     shared_mem_size = 2 * tile_width * tile_width * sizeof(double);
 
     time1 = get_cur_time();
-    phpc_gemm_summa_cuda(grid_comm, A, B, C, ld, Nglob, Mglob, Pglob, dim_block, dim_grid, shared_mem_size);
+    phpc_gemm_summa_cuda(grid_comm, A, B, C, ld, Nglob, Nglob, Nglob, dim_block, dim_grid, shared_mem_size);
     time2 = get_cur_time() - time1;
     printf(" proc = %d:   %4d   %4d   %e  %f \n", rank, Nglob, dim_block.x * dim_block.y * dim_grid.x * dim_grid.y, time2, 2 * Ndouble * Ndouble * Ndouble / time2 / 1.e9);
 
