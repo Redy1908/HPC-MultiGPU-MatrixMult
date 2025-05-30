@@ -26,5 +26,5 @@ srun --mpi=pmix_v3 bash -c '
         --gpu-metrics-device=all \
         --cuda-memory-usage=true \
         --stats=false \
-        --trace=cuda,mpi,nvtx \
+        --trace=cuda,cublas,mpi,nvtx \
         bin/main_matmul.out'
