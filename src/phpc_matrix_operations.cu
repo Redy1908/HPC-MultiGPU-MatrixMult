@@ -67,6 +67,7 @@ __global__ void gemm_kernel(double *A, double *B, double *C, int M, int N, int K
 void phpc_gemm_summa_cuda(MPI_Comm grid_comm, double *A, double *B, double *C, int ld, int N_glob, int Mglob, int Pglob, dim3 dim_block, dim3 dim_grid, int shared_mem_size) {
   int dims[2], periods[2], coords[2];
   int k_loop, c_col_rank, r_row_rank, K2_lcm;
+  dim3 actual_dim_grid;
 
   int h_block_rows_A, block_rows_B_panel;
   int block_cols_A_panel, h_block_cols_B;
@@ -128,6 +129,13 @@ void phpc_gemm_summa_cuda(MPI_Comm grid_comm, double *A, double *B, double *C, i
 
     MPI_Bcast(d_A_tile, h_block_rows_A * block_cols_A_panel, MPI_DOUBLE, c_col_rank, row_comm);
     MPI_Bcast(d_B_tile, block_rows_B_panel * h_block_cols_B, MPI_DOUBLE, r_row_rank, col_comm);
+
+    if (dim_grid.x == 0 && dim_grid.y == 0) {
+      actual_dim_grid = dim3(ceil((double)h_block_cols_B / dim_block.x), ceil((double)h_block_rows_A / dim_block.y));
+    } else {
+      actual_dim_grid = dim_grid;
+      actual_dim_grid.z = 1;
+    }
 
     gemm_kernel<<<dim_grid, dim_block, shared_mem_size>>>(
         d_A_tile, d_B_tile, d_C_tile,

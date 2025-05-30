@@ -114,13 +114,16 @@ int main(int argc, char *argv[]) {
   for (Nglob = 2048; Nglob <= 2048 * 3; Nglob = Nglob + 2048) {
     Ndouble = Nglob;
 
+    int M_local_C = Nglob / dims[0];
+    int N_local_C = Nglob / dims[1];
+
     // test con 1 thread
     MPI_Barrier(MPI_COMM_WORLD);
     tile_width = 1;
     check_threads_per_block(prop, tile_width, rank);
     check_shared_memory_usage(prop, tile_width, rank);
     dim_block = dim3(tile_width, tile_width, 1);
-    dim_grid = dim3(1, 1, 1);
+    dim_grid = dim3(1, 1, 1);  // forziamo 1 solo blocco per utilizzare 1 solo thread
     shared_mem_size = 2 * tile_width * tile_width * sizeof(double);
 
     time1 = get_cur_time();
@@ -134,7 +137,7 @@ int main(int argc, char *argv[]) {
     check_threads_per_block(prop, tile_width, rank);
     check_shared_memory_usage(prop, tile_width, rank);
     dim_block = dim3(tile_width, tile_width, 1);
-    dim_grid = dim3(1, 1, 1);
+    dim_grid = dim3(0, 0, 0);  // quando passiamo dim3(0,0,0) la dmensione della griglia viene calcolata automaticamente in modo ottimale dentro summa
     shared_mem_size = 2 * tile_width * tile_width * sizeof(double);
 
     time1 = get_cur_time();
@@ -143,9 +146,6 @@ int main(int argc, char *argv[]) {
     printf(" proc = %d:   %4d   %4d   %e  %f \n", rank, Nglob, dim_block.x * dim_block.y * dim_grid.x * dim_grid.y, time2, 2 * Ndouble * Ndouble * Ndouble / time2 / 1.e9);
 
     // Altri test qui chiamare MPI_Barrier(MPI_COMM_WORLD); prima di ogni test
-
-    // questa è la dimensione ottimale della griglia definita sui blocchi locali all'interno di summa dovremmo fare almeno 1 test con la dimensione ottimale da capire come
-    // dim3 dim_grid(ceil(block_cols_B / (float)tile_width), ceil(block_rows_A / (float)tile_width), 1);
   }
 
   MPI_Barrier(MPI_COMM_WORLD);
