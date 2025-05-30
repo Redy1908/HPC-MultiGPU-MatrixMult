@@ -137,7 +137,7 @@ void phpc_gemm_summa_cuda(MPI_Comm grid_comm, double *A, double *B, double *C, i
       actual_dim_grid.z = 1;
     }
 
-    gemm_kernel<<<dim_grid, dim_block, shared_mem_size>>>(
+    gemm_kernel<<<actual_dim_grid, dim_block, shared_mem_size>>>(
         d_A_tile, d_B_tile, d_C_tile,
         h_block_rows_A, h_block_cols_B, block_cols_A_panel);
 

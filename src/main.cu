@@ -114,9 +114,6 @@ int main(int argc, char *argv[]) {
   for (Nglob = 2048; Nglob <= 2048 * 3; Nglob = Nglob + 2048) {
     Ndouble = Nglob;
 
-    int M_local_C = Nglob / dims[0];
-    int N_local_C = Nglob / dims[1];
-
     /*
      * Test con 1 thread, bisogna considerare che questo test potrebbe essere molto lento attualmente lo script limita l'esecuzione a 5 minuti
      * consiglio di rimuove questo test per testare il codice
