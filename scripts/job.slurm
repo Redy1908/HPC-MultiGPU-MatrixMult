@@ -10,8 +10,8 @@
 MPI_INCLUDE_PATH="/usr/mpi/gcc/openmpi-4.1.0rc5/include"
 MPI_LIB_PATH="/usr/mpi/gcc/openmpi-4.1.0rc5/lib64"
 
-# Exclude shared memory as a communication protocol, forcing InfiniBand and TCP
-export UCX_TLS=self,ib,tcp,^sm,^mm
+# Force to use InfiniBand or TCP avoid shared memory: sm and mm (self is for intra-node communication)
+export UCX_TLS=self,ib,tcp
 
 nvcc src/main.cu src/utils.cu src/phpc_matrix_operations.cu -o bin/main_matmul.out \
     -I"$MPI_INCLUDE_PATH" -L"$MPI_LIB_PATH" -Isrc \
