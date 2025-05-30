@@ -117,7 +117,10 @@ int main(int argc, char *argv[]) {
     int M_local_C = Nglob / dims[0];
     int N_local_C = Nglob / dims[1];
 
-    // test con 1 thread
+    /*
+     * Test con 1 thread, bisogna considerare che questo test potrebbe essere molto lento attualmente lo script limita l'esecuzione a 5 minuti
+     * consiglio di rimuove questo test per testare il codice
+     */
     MPI_Barrier(MPI_COMM_WORLD);
     tile_width = 1;
     check_threads_per_block(prop, tile_width, rank);
