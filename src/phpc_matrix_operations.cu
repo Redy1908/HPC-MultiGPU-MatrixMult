@@ -66,14 +66,15 @@ __global__ void gemm_kernel(double *A, double *B, double *C, int M, int N, int K
 
 void phpc_gemm_summa_cuda(MPI_Comm grid_comm, double *A, double *B, double *C, int lda, int ldb, int ldc, int Nglob, int Mglob, int Pglob, dim3 dim_block, dim3 dim_grid, int shared_mem_size) {
   int dims[2], periods[2], coords[2];
-  int k_loop, c_col_rank, r_row_rank, K2_lcm;
+  int k, is_col, is_row, lcm;
+
+  int local_A_rows;
+  int panel_K_dim;
+  int local_B_cols;
+
+  double *d_A_panel, *d_B_panel, *d_C_local_block;
+
   dim3 actual_dim_grid;
-
-  int h_block_rows_A, block_rows_B_panel;
-  int block_cols_A_panel, h_block_cols_B;
-
-  double *h_A_tile_start, *h_B_tile_start;
-  double *d_A_tile, *d_B_tile, *d_C_tile;
 
   MPI_Comm row_comm, col_comm;
 
@@ -82,80 +83,78 @@ void phpc_gemm_summa_cuda(MPI_Comm grid_comm, double *A, double *B, double *C, i
 
   MPI_Cart_get(grid_comm, 2, dims, periods, coords);
 
-  K2_lcm = find_lcm(dims[0], dims[1]);
+  lcm = find_lcm(dims[0], dims[1]);
 
-  h_block_rows_A = Nglob / dims[0];
-  block_cols_A_panel = Mglob / K2_lcm;
-  block_rows_B_panel = Mglob / K2_lcm;
-  h_block_cols_B = Pglob / dims[1];
+  local_A_rows = Nglob / dims[0];
+  panel_K_dim = Mglob / lcm;
+  local_B_cols = Pglob / dims[1];
 
-  cudaMalloc((void **)&d_A_tile, h_block_rows_A * block_cols_A_panel * sizeof(double));
-  cudaMalloc((void **)&d_B_tile, block_rows_B_panel * h_block_cols_B * sizeof(double));
-  cudaMalloc((void **)&d_C_tile, h_block_rows_A * h_block_cols_B * sizeof(double));
+  cudaMalloc((void **)&d_A_panel, local_A_rows * panel_K_dim * sizeof(double));
+  cudaMalloc((void **)&d_B_panel, panel_K_dim * local_B_cols * sizeof(double));
+  cudaMalloc((void **)&d_C_local_block, local_A_rows * local_B_cols * sizeof(double));
 
-  cudaMemset(d_C_tile, 0, h_block_rows_A * h_block_cols_B * sizeof(double));
+  cudaMemset(d_C_local_block, 0, local_A_rows * local_B_cols * sizeof(double));
 
   MPI_Cart_sub(grid_comm, remain_dims_row, &row_comm);
   MPI_Cart_sub(grid_comm, remain_dims_col, &col_comm);
 
-  h_A_tile_start = A;
-  h_B_tile_start = B;
+  double *current_A_panel_host_start = A;
+  double *current_B_panel_host_start = B;
 
-  for (k_loop = 0; k_loop < K2_lcm; k_loop++) {
-    c_col_rank = k_loop % dims[1];
-    r_row_rank = k_loop % dims[0];
+  for (k = 0; k < lcm; k++) {
+    is_col = k % dims[1];
+    is_row = k % dims[0];
 
-    if (coords[1] == c_col_rank) {
-      cudaMemcpy2D(d_A_tile,
-                   block_cols_A_panel * sizeof(double),
-                   h_A_tile_start,
+    if (coords[1] == is_col) {
+      cudaMemcpy2D(d_A_panel,
+                   panel_K_dim * sizeof(double),
+                   current_A_panel_host_start,
                    lda * sizeof(double),
-                   block_cols_A_panel * sizeof(double),
-                   h_block_rows_A,
+                   panel_K_dim * sizeof(double),
+                   local_A_rows,
                    cudaMemcpyHostToDevice);
-      h_A_tile_start += block_cols_A_panel;
+      current_A_panel_host_start += panel_K_dim;
     }
 
-    if (coords[0] == r_row_rank) {
-      cudaMemcpy2D(d_B_tile,
-                   h_block_cols_B * sizeof(double),
-                   h_B_tile_start,
+    if (coords[0] == is_row) {
+      cudaMemcpy2D(d_B_panel,
+                   local_B_cols * sizeof(double),
+                   current_B_panel_host_start,
                    ldb * sizeof(double),
-                   h_block_cols_B * sizeof(double),
-                   block_rows_B_panel,
+                   local_B_cols * sizeof(double),
+                   panel_K_dim,
                    cudaMemcpyHostToDevice);
-      h_B_tile_start += block_rows_B_panel * ldb;
+      current_B_panel_host_start += panel_K_dim * ldb;
     }
 
-    MPI_Bcast(d_A_tile, h_block_rows_A * block_cols_A_panel, MPI_DOUBLE, c_col_rank, row_comm);
-    MPI_Bcast(d_B_tile, block_rows_B_panel * h_block_cols_B, MPI_DOUBLE, r_row_rank, col_comm);
+    MPI_Bcast(d_A_panel, local_A_rows * panel_K_dim, MPI_DOUBLE, is_col, row_comm);
+    MPI_Bcast(d_B_panel, panel_K_dim * local_B_cols, MPI_DOUBLE, is_row, col_comm);
 
     if (dim_grid.x == 0 && dim_grid.y == 0) {
-      actual_dim_grid = dim3(ceil((double)h_block_cols_B / dim_block.x), ceil((double)h_block_rows_A / dim_block.y));
+      actual_dim_grid.x = (unsigned int)ceil((double)local_B_cols / dim_block.x);
+      actual_dim_grid.y = (unsigned int)ceil((double)local_A_rows / dim_block.y);
+      actual_dim_grid.z = 1;
     } else {
       actual_dim_grid = dim_grid;
-      actual_dim_grid.z = 1;
     }
 
-    gemm_kernel<<<actual_dim_grid, dim_block, shared_mem_size>>>(
-        d_A_tile, d_B_tile, d_C_tile,
-        h_block_rows_A, h_block_cols_B, block_cols_A_panel);
+    gemm_kernel<<<actual_dim_grid, dim_block, shared_mem_size>>>(d_A_panel, d_B_panel, d_C_local_block, local_A_rows, local_B_cols, panel_K_dim);
 
     cudaDeviceSynchronize();
   }
 
   cudaMemcpy2D(C,
-               ldc * sizeof(double),
-               d_C_tile,
-               h_block_cols_B * sizeof(double),
-               h_block_cols_B * sizeof(double),
-               h_block_rows_A,
+               (size_t)ldc * sizeof(double),
+               d_C_local_block,
+               (size_t)local_B_cols * sizeof(double),
+               (size_t)local_B_cols * sizeof(double),
+               (size_t)local_A_rows,
                cudaMemcpyDeviceToHost);
 
   MPI_Comm_free(&row_comm);
   MPI_Comm_free(&col_comm);
 
-  cudaFree(d_A_tile);
-  cudaFree(d_B_tile);
-  cudaFree(d_C_tile);
+  cudaFree(d_A_panel);
+  cudaFree(d_B_panel);
+  cudaFree(d_C_local_block);
 }
