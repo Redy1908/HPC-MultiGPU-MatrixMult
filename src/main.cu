@@ -88,7 +88,6 @@ int main(int argc, char *argv[]) {
       if (C[i * ld + j] != 16.0) {
         fprintf(stderr, "Correcteness error at rank %d, C[%d][%d] = %f\n", rank, i, j, C[i * ld + j]);
         test_correctness = 0;
-        break;
       }
     }
   }
