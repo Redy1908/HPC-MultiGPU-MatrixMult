@@ -64,7 +64,7 @@ __global__ void gemm_kernel(double *A, double *B, double *C, int M, int N, int K
   }
 }
 
-void phpc_gemm_summa_cuda(MPI_Comm grid_comm, double *A, double *B, double *C, int ld, int N_glob, int Mglob, int Pglob, dim3 dim_block, dim3 dim_grid, int shared_mem_size) {
+void phpc_gemm_summa_cuda(MPI_Comm grid_comm, double *A, double *B, double *C, int lda, int ldb, int ldc, int Nglob, int Mglob, int Pglob, dim3 dim_block, dim3 dim_grid, int shared_mem_size) {
   int dims[2], periods[2], coords[2];
   int k_loop, c_col_rank, r_row_rank, K2_lcm;
   dim3 actual_dim_grid;
@@ -84,10 +84,10 @@ void phpc_gemm_summa_cuda(MPI_Comm grid_comm, double *A, double *B, double *C, i
 
   K2_lcm = find_lcm(dims[0], dims[1]);
 
-  h_block_rows_A = N_glob / dims[0];
+  h_block_rows_A = Nglob / dims[0];
   block_cols_A_panel = Mglob / K2_lcm;
   block_rows_B_panel = Mglob / K2_lcm;
-  h_block_cols_B = N_glob / dims[1];
+  h_block_cols_B = Pglob / dims[1];
 
   cudaMalloc((void **)&d_A_tile, h_block_rows_A * block_cols_A_panel * sizeof(double));
   cudaMalloc((void **)&d_B_tile, block_rows_B_panel * h_block_cols_B * sizeof(double));
@@ -109,7 +109,7 @@ void phpc_gemm_summa_cuda(MPI_Comm grid_comm, double *A, double *B, double *C, i
       cudaMemcpy2D(d_A_tile,
                    block_cols_A_panel * sizeof(double),
                    h_A_tile_start,
-                   ld * sizeof(double),
+                   lda * sizeof(double),
                    block_cols_A_panel * sizeof(double),
                    h_block_rows_A,
                    cudaMemcpyHostToDevice);
@@ -120,11 +120,11 @@ void phpc_gemm_summa_cuda(MPI_Comm grid_comm, double *A, double *B, double *C, i
       cudaMemcpy2D(d_B_tile,
                    h_block_cols_B * sizeof(double),
                    h_B_tile_start,
-                   ld * sizeof(double),
+                   ldb * sizeof(double),
                    h_block_cols_B * sizeof(double),
                    block_rows_B_panel,
                    cudaMemcpyHostToDevice);
-      h_B_tile_start += block_rows_B_panel * ld;
+      h_B_tile_start += block_rows_B_panel * ldb;
     }
 
     MPI_Bcast(d_A_tile, h_block_rows_A * block_cols_A_panel, MPI_DOUBLE, c_col_rank, row_comm);
@@ -145,7 +145,7 @@ void phpc_gemm_summa_cuda(MPI_Comm grid_comm, double *A, double *B, double *C, i
   }
 
   cudaMemcpy2D(C,
-               ld * sizeof(double),
+               ldc * sizeof(double),
                d_C_tile,
                h_block_cols_B * sizeof(double),
                h_block_cols_B * sizeof(double),
