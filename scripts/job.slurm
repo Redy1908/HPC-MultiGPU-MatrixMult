@@ -16,7 +16,11 @@ nvcc src/main.cu src/utils.cu src/phpc_matrix_operations.cu -o bin/main_matmul.o
     -lineinfo
 
 srun --mpi=pmix_v3 bash -c '
+    export OMPI_MCA_pml=ucx    
+    #export UCX_TLS=dc_mlx5,rc_mlx5,cuda_ipc,cuda_copy,gdr_copy,sm,self #multi nodo al momento non funziona
+    export UCX_TLS=cuda_ipc,cuda_copy,gdr_copy,sm,self #protocolli funzionanti singolo nodo
     export CUDA_VISIBLE_DEVICES=$SLURM_LOCALID
+    
     nsys profile \
         --output=profiling/nsys_profile_rank_${SLURM_PROCID} \
         --force-overwrite true \
