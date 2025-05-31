@@ -17,4 +17,5 @@ nvcc src/main.cu src/utils.cu src/phpc_matrix_operations.cu -o bin/main_matmul.o
 
 srun --mpi=pmix_v3 bash -c '
     export CUDA_VISIBLE_DEVICES=$SLURM_LOCALID
-    bin/main_matmul.out'
+    bin/main_matmul.out
+'
