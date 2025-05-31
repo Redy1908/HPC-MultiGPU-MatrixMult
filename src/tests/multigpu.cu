@@ -8,8 +8,8 @@ __global__ void gemm_kernel(float *A, float *B, float *C, int M, int N, int K) {
 
   int tile_width = blockDim.x;
 
-  float *s_A = (float *)shared_mem;
-  float *s_B = (float *)shared_mem + tile_width * tile_width;
+  float *s_A = shared_mem;
+  float *s_B = shared_mem + tile_width * tile_width;
 
   int tx = threadIdx.x;
   int ty = threadIdx.y;
@@ -32,31 +32,29 @@ __global__ void gemm_kernel(float *A, float *B, float *C, int M, int N, int K) {
     int global_row_C = C_tile_row_base + ty;
     int global_col_C = C_tile_col_base + tx;
 
-    float c_value = 0.0;
+    float c_value = 0;
 
     int num_phases = (int)ceil((float)K / tile_width);
     for (int phase = 0; phase < num_phases; ++phase) {
       if ((global_row_C < M) && (phase * tile_width + tx) < K)
         s_A[ty * tile_width + tx] = A[global_row_C * K + phase * tile_width + tx];
       else
-        s_A[ty * tile_width + tx] = 0.0;
+        s_A[ty * tile_width + tx] = 0;
 
       if ((phase * tile_width + ty) < K && (global_col_C < N))
         s_B[ty * tile_width + tx] = B[(phase * tile_width + ty) * N + global_col_C];
       else
-        s_B[ty * tile_width + tx] = 0.0;
+        s_B[ty * tile_width + tx] = 0;
 
       __syncthreads();
 
-      for (int k_tile = 0; k_tile < tile_width; ++k_tile) {
-        if (phase * tile_width + k_tile < K) {
-          c_value += s_A[ty * tile_width + k_tile] * s_B[k_tile * tile_width + tx];
-        }
-      }
+      for (int k_tile = 0; k_tile < tile_width; ++k_tile)
+        c_value += s_A[ty * tile_width + k_tile] * s_B[k_tile * tile_width + tx];
+
       __syncthreads();
     }
 
-    if ((global_row_C < M) && (global_col_C < N))
+    if (global_row_C < M && global_col_C < N)
       C[global_row_C * N + global_col_C] += c_value;
   }
 }
@@ -71,6 +69,26 @@ int phpc_gemm_cuda(const float *a, const float *b, float *c, int width, int gpu_
   assert(block_width * block_width <= 1024);
   assert(gpu_count <= device_count);
   assert(width % gpu_count == 0);
+
+  /**
+   * Matrix A: each gpu has a "row"
+   *  ________________________
+   * |         GPU 0         |
+   * -------------------------
+   * |          ...          |
+   * -------------------------
+   * |         GPU N         |
+   * -------------------------
+   *
+   * Matrix B: each gpu has a "column"
+   *  ________________________
+   * |       |       |       |
+   * |       |       |       |
+   * | GPU 0 |  ...  | GPU N |
+   * |       |       |       |
+   * |       |       |       |
+   * -------------------------
+   */
 
   int m = width / gpu_count;
   int n = width / gpu_count;
@@ -117,6 +135,16 @@ int phpc_gemm_cuda(const float *a, const float *b, float *c, int width, int gpu_
     }
   }
 
+  /**
+   * Gather results: each GPU has a column of the resulting matrix
+   *  ________________________
+   * |       |       |       |
+   * |       |       |       |
+   * | GPU 0 |  ...  | GPU i |
+   * |       |       |       |
+   * |       |       |       |
+   * -------------------------
+   */
   for (int i = 0; i < gpu_count; i++) {
     cudaSetDevice(i);
     cudaMemcpy2D(c + n * i, width * sizeof(float), dev_buffers_c[i], n * sizeof(float), n * sizeof(float), width, cudaMemcpyDeviceToHost);
