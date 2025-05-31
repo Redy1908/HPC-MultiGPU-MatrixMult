@@ -43,9 +43,9 @@ int main(int argc, char *argv[]) {
   // ==================================================
   // Test di correttezza
   // ==================================================
-  Nglob = 2;
-  Mglob = 4;
-  Pglob = 4;
+  Nglob = 32;
+  Mglob = 32;
+  Pglob = 32;
 
   for (i = 0; i < Nglob / dims[0]; i++) {
     for (j = 0; j < Mglob / lcm; j++) {
@@ -81,7 +81,7 @@ int main(int argc, char *argv[]) {
   int test_correctness = 1;
   for (i = 0; i < Nglob / dims[0]; i++) {
     for (j = 0; j < Pglob / dims[1]; j++) {
-      if (C[i * ld + j] != 16.0) {
+      if (C[i * ld + j] != 128.0) {
         fprintf(stderr, "Correcteness error at rank %d, C[%d][%d] = %f\n", rank, i, j, C[i * ld + j]);
         test_correctness = 0;
       }
@@ -119,6 +119,23 @@ int main(int argc, char *argv[]) {
   // test di efficienza al crescere delle dimensioni della metrice ed il numero di thread
   for (Nglob = 2048; Nglob <= 2048 * 3; Nglob = Nglob + 2048) {
     Ndouble = Nglob;
+
+    /*
+     * Test con 1 thread, bisogna considerare che questo test sarà essere molto lento, attualmente lo script limita l'esecuzione a 5 minuti
+     * consiglio di rimuove questo test per testare il codice
+     */
+    MPI_Barrier(MPI_COMM_WORLD);
+    tile_width = 1;
+    check_threads_per_block(prop, tile_width, rank);
+    check_shared_memory_usage(prop, tile_width, rank);
+    dim_block = dim3(tile_width, tile_width, 1);
+    dim_grid = dim3(1, 1, 1);  // forziamo 1 solo blocco per utilizzare 1 solo thread
+    shared_mem_size = 2 * tile_width * tile_width * sizeof(double);
+
+    time1 = get_cur_time();
+    phpc_gemm_summa_cuda(grid_comm, A, B, C, ld, ld, ld, Nglob, Nglob, Nglob, dim_block, dim_grid, shared_mem_size);
+    time2 = get_cur_time() - time1;
+    printf(" proc = %d:   %4d   %4d   %e  %f \n", rank, Nglob, dim_block.x * dim_block.y * dim_grid.x * dim_grid.y, time2, 2 * Ndouble * Ndouble * Ndouble / time2 / 1.e9);
 
     // test con 1024 thread
     MPI_Barrier(MPI_COMM_WORLD);

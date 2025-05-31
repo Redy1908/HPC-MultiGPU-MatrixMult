@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH -p gpus                        # Queue
-#SBATCH --ntasks=4                     # Total number of MPI tasks
+#SBATCH --ntasks=16                    # Total number of MPI tasks
 #SBATCH --gpus-per-task=1              # GPUs per task
 #SBATCH --time=00:05:00                # Maximum time limit 5 min (up to 7 days)
 #SBATCH --output=logs/output.log       # Output file
@@ -17,11 +17,4 @@ nvcc src/main.cu src/utils.cu src/phpc_matrix_operations.cu -o bin/main_matmul.o
 
 srun --mpi=pmix_v3 bash -c '
     export CUDA_VISIBLE_DEVICES=$SLURM_LOCALID
-    nsys profile \
-        --output=profiling/nsys_profile_rank_${SLURM_PROCID} \
-        --force-overwrite true \
-        --gpu-metrics-device=all \
-        --cuda-memory-usage=true \
-        --stats=false \
-        --trace=cuda,cublas,mpi,nvtx \
-        bin/main_matmul.out'
+    bin/main_matmul.out'
