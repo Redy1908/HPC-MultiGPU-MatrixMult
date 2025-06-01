@@ -114,7 +114,6 @@ int main(int argc, char *argv[]) {
 
   // test di efficienza al crescere delle dimensioni della metrice ed il numero di thread
   for (Nglob = 2048; Nglob <= 2048 * 3; Nglob = Nglob + 2048) {
-    Ndouble = Nglob;
 
     /*
      * Test con 1 thread, bisogna considerare che questo test sarà essere molto lento, attualmente lo script limita l'esecuzione a 5 minuti
