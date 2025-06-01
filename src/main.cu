@@ -5,7 +5,7 @@ int main(int argc, char *argv[]) {
   int i, j, Nglob, Mglob, Pglob, ld;
   double *A, *B, *C;
   int dims[2], period[2], coord[2], rank, size;
-  double time1, time2, Ndouble;
+  double start_time, end_time;
   dim3 dim_block, dim_grid;
   int shared_mem_size;
   MPI_Comm grid_comm;
@@ -112,10 +112,6 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  if (rank == 0) {
-    printf("               N       T   Time       Gflops\n");
-  }
-
   // test di efficienza al crescere delle dimensioni della metrice ed il numero di thread
   for (Nglob = 2048; Nglob <= 2048 * 3; Nglob = Nglob + 2048) {
     Ndouble = Nglob;
@@ -132,10 +128,9 @@ int main(int argc, char *argv[]) {
     dim_grid = dim3(1, 1, 1);  // forziamo 1 solo blocco per utilizzare 1 solo thread
     shared_mem_size = 2 * tile_width * tile_width * sizeof(double);
 
-    time1 = get_cur_time();
+    start_time = get_cur_time();
     phpc_gemm_summa_cuda(grid_comm, A, B, C, ld, ld, ld, Nglob, Nglob, Nglob, dim_block, dim_grid, shared_mem_size);
-    time2 = get_cur_time() - time1;
-    printf(" proc = %d:   %4d   %4d   %e  %f \n", rank, Nglob, dim_block.x * dim_block.y * dim_grid.x * dim_grid.y, time2, 2 * Ndouble * Ndouble * Ndouble / time2 / 1.e9);
+    end_time = get_cur_time() - start_time;
 
     // test con 1024 thread
     MPI_Barrier(MPI_COMM_WORLD);
@@ -146,15 +141,23 @@ int main(int argc, char *argv[]) {
     dim_grid = dim3(0, 0, 0);  // quando passiamo dim3(0,0,0) la dmensione della griglia viene calcolata automaticamente in modo ottimale dentro summa
     shared_mem_size = 2 * tile_width * tile_width * sizeof(double);
 
-    time1 = get_cur_time();
+    start_time = get_cur_time();
     phpc_gemm_summa_cuda(grid_comm, A, B, C, ld, ld, ld, Nglob, Nglob, Nglob, dim_block, dim_grid, shared_mem_size);
-    time2 = get_cur_time() - time1;
-    printf(" proc = %d:   %4d   %4d   %e  %f \n", rank, Nglob, dim_block.x * dim_block.y * dim_grid.x * dim_grid.y, time2, 2 * Ndouble * Ndouble * Ndouble / time2 / 1.e9);
+    end_time = get_cur_time() - start_time;
 
     // Altri test qui chiamare MPI_Barrier(MPI_COMM_WORLD); prima di ogni test
   }
 
   MPI_Barrier(MPI_COMM_WORLD);
+
+  free(A);
+  free(B);
+  free(C);
+
+  if (rank == 0) {
+    printf("All tests completed.\n");
+  }
+
   MPI_Finalize();
 
   return 0;
