@@ -137,13 +137,16 @@ int main(int argc, char *argv[]) {
      *
      * La dimensione della griglia viene calcolata automaticamente in modo ottimale dentro summa nel
      * seguente modo: dim_grid.x = (unsigned int)ceil((double)local_B_cols / dim_block.x);
-     *                grid.y = (unsigned int)ceil((double)local_A_rows / dim_block.y);
+     *                grid.y     = (unsigned int)ceil((double)local_A_rows / dim_block.y);
      *
-     * considerando le dimensioni effettive delle porzioni di matrici che verranno moltiplicate.)
+     * considerando le dimensioni effettive delle porzioni di matrici che verranno moltiplicate.
      *
      * Ad esempio: consideriamo 2 blocchi di matrici 2048x2048, con tile_width = 32, avremo una griglia di 64x64 blocchi
-     * da 1024 thread ciascuno, quindi 64*64*1024 = 4194304 thread. Questo ci permette di mappare 1:1 i blocchi di matrice
-     * con i thread della GPU, e di avere il massimo parallelismo possibile.
+     * da 1024 thread ciascuno, quindi 64*64*1024 = 4194304 thread = 2048x2048. Questo ci permette di mappare 1:1 i le matrici
+     * con i thread della GPU e di avere il massimo parallelismo possibile.
+     * 
+     * Nel caso in cui le dimensioni delle matrici non siano multipli di tile_width, la funzione ceil() arrotonda per eccesso
+     * le dimensione della griglia assicurando una copertura completa delle matrici con dei blocchi in caso parzialmente utilizzati.
      *
      */
     MPI_Barrier(MPI_COMM_WORLD);
