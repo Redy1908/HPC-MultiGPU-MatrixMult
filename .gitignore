@@ -19,3 +19,5 @@ matrix_generation/matrix_generation.out
 profiling/*
 
 !profiling/.gitkeep
+
+jupyter/.ipynb_checkpoints/*
