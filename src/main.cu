@@ -101,7 +101,6 @@ int main(int argc, char *argv[]) {
   // ==================================================
   // Test di efficienza fissata la dimensione del problema (N x N) al crescere del numero di thread
   // ==================================================
-  prop = set_gpu_and_get_properties(rank);
 
   srand(0);
   for (i = 0; i < N; i++) {
