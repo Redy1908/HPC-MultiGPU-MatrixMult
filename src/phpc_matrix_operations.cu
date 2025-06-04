@@ -114,7 +114,7 @@ int phpc_gemm_cuda(const double *a, int lda, const double *b, int ldb, double *c
     return 2;
   }
 
-  int actual_gpu_count = 0;
+  int launched_kernels = 0;
   int return_code = 0;
 
   for (int gpu = 0; gpu < gpu_count; gpu++) {
@@ -151,6 +151,7 @@ int phpc_gemm_cuda(const double *a, int lda, const double *b, int ldb, double *c
       break;
     }
 
+    /* copy from host to device */
     cudaMemcpy2DAsync(dev_buffers_a[gpu], k * sizeof(double), a, lda * sizeof(double), k * sizeof(double), m, cudaMemcpyHostToDevice, streams[gpu]);
     cudaMemcpy2DAsync(dev_buffers_b[gpu], dev_n * sizeof(double), b + dev_n * gpu, ldb * sizeof(double), dev_n * sizeof(double), k, cudaMemcpyHostToDevice, streams[gpu]);
     cudaMemcpy2DAsync(dev_buffers_c[gpu], dev_n * sizeof(double), c + dev_n * gpu, ldc * sizeof(double), dev_n * sizeof(double), k, cudaMemcpyHostToDevice, streams[gpu]);
@@ -161,10 +162,10 @@ int phpc_gemm_cuda(const double *a, int lda, const double *b, int ldb, double *c
     /* copy result from device to host */
     cudaMemcpy2DAsync(c + dev_n * gpu, ldc * sizeof(double), dev_buffers_c[gpu], dev_n * sizeof(double), dev_n * sizeof(double), m, cudaMemcpyDeviceToHost, streams[gpu]);
 
-    actual_gpu_count++;
+    launched_kernels++;
   }
 
-  for (int gpu = 0; gpu < actual_gpu_count; gpu++) {
+  for (int gpu = 0; gpu < launched_kernels; gpu++) {
     cudaSetDevice(gpu);
     cudaStreamSynchronize(streams[gpu]);
     cudaStreamDestroy(streams[gpu]);
