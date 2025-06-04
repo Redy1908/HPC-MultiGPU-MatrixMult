@@ -10,11 +10,9 @@ logs/*
 
 !logs/.gitkeep
 
-inputs/*
+csv/*
 
-!inputs/.gitkeep
-
-matrix_generation/matrix_generation.out
+!csv/.gitkeep
 
 profiling/*
 

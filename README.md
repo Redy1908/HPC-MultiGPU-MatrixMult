@@ -13,7 +13,7 @@ I file di log verranno creati nella directory `logs/`:
 -   Output standard: `logs/output.log`
 -   Errori: `logs/error.log`
 
-I file CSV saranno generati nella directory `logs/`.
+I file CSV saranno generati nella directory `csv/`.
 
 I file di profiling generati da NVIDIA Nsight Systems saranno salvati nella directory `profiling/`:
 -   1 file per ogni processo MPI
