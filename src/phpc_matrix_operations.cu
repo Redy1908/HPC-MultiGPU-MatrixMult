@@ -64,7 +64,7 @@ __global__ void gemm_kernel(double *A, double *B, double *C, int M, int N, int K
   }
 }
 
-void phpc_gemm_summa_cuda(MPI_Comm grid_comm, double *A, double *B, double *C, int ld, int M, int K, int N, dim3 dim_block, dim3 dim_grid, int shared_mem_size) {
+void phpc_gemm_summa_cuda(MPI_Comm grid_comm, double *A, double *B, double *C, int N, dim3 dim_block, dim3 dim_grid, int shared_mem_size) {
   int dims[2], periods[2], coords[2];
   int i, k, c, r, K2;
 
@@ -83,9 +83,9 @@ void phpc_gemm_summa_cuda(MPI_Comm grid_comm, double *A, double *B, double *C, i
 
   K2 = find_lcm(dims[0], dims[1]);
 
-  block_rows_A = M / dims[0];
-  block_rows_B = K / K2;
-  block_cols_A = K / K2;
+  block_rows_A = N / dims[0];
+  block_rows_B = N / K2;
+  block_cols_A = N / K2;
   block_cols_B = N / dims[1];
 
   A_col_host = (double *)malloc(block_rows_A * block_cols_A * sizeof(double));
@@ -95,8 +95,6 @@ void phpc_gemm_summa_cuda(MPI_Comm grid_comm, double *A, double *B, double *C, i
   cudaMalloc((void **)&d_A_col, block_rows_A * block_cols_A * sizeof(double));
   cudaMalloc((void **)&d_B_row, block_rows_B * block_cols_B * sizeof(double));
   cudaMalloc((void **)&d_C_block, block_rows_A * block_cols_B * sizeof(double));
-
-  cudaMemset(d_C_block, 0, block_rows_A * block_cols_B * sizeof(double));
 
   MPI_Cart_sub(grid_comm, remain_dims_row, &row_comm);
   MPI_Cart_sub(grid_comm, remain_dims_col, &col_comm);
@@ -110,16 +108,16 @@ void phpc_gemm_summa_cuda(MPI_Comm grid_comm, double *A, double *B, double *C, i
 
     if (coords[1] == c) {
       for (i = 0; i < block_rows_A; i++) {
-        memcpy(&A_col_host[i * block_cols_A], &A_start[i * ld], block_cols_A * sizeof(double));
+        memcpy(&A_col_host[i * block_cols_A], &A_start[i * N], block_cols_A * sizeof(double));
       }
       A_start += block_cols_A;
     }
 
     if (coords[0] == r) {
       for (i = 0; i < block_rows_B; i++) {
-        memcpy(&B_row_host[i * block_cols_B], &B_start[i * ld], block_cols_B * sizeof(double));
+        memcpy(&B_row_host[i * block_cols_B], &B_start[i * N], block_cols_B * sizeof(double));
       }
-      B_start += block_rows_B * ld;
+      B_start += block_rows_B * N;
     }
 
     MPI_Bcast(A_col_host, block_rows_A * block_cols_A, MPI_DOUBLE, c, row_comm);
