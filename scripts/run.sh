@@ -9,9 +9,9 @@ for NPROCS in "${PROCESS_COUNTS[@]}"; do
 #SBATCH --ntasks=${NPROCS}
 #SBATCH --gpus-per-task=1
 #SBATCH --time=00:10:00
-#SBATCH --output=logs/output_${NPROCS}procs.log
-#SBATCH --error=logs/error_${NPROCS}procs.log
-#SBATCH --job-name=matmul_${NPROCS}p
+#SBATCH --output=logs/output_${NPROCS}process.log
+#SBATCH --error=logs/error_${NPROCS}process.log
+#SBATCH --job-name=matmul_${NPROCS}process
 
 MPI_INCLUDE_PATH="/usr/mpi/gcc/openmpi-4.1.0rc5/include"
 MPI_LIB_PATH="/usr/mpi/gcc/openmpi-4.1.0rc5/lib64"

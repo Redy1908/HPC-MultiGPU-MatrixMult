@@ -272,10 +272,8 @@ int main(int argc, char *argv[]) {
     if (csv_file == NULL) {
       fprintf(stderr, "Error: Cannot create CSV file %s\n", filename);
     } else {
-      // Header del CSV
       fprintf(csv_file, "Test,Processes,Matrix_Size,Tile_Width,Threads_Per_Block,Total_Blocks,Grid_X,Grid_Y,Time_Seconds,GFLOPS,Speedup,Efficiency\n");
 
-      // Calcola GFLOPS di riferimento
       double total_ops = 2.0 * Ndouble * Ndouble * Ndouble;
 
       for (int test_id = 0; test_id < 5; test_id++) {
