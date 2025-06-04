@@ -1,6 +1,6 @@
 #!/bin/bash
 
-PROCESS_COUNTS=(1 4 16 64)
+PROCESS_COUNTS=(1 4 16)
 for NPROCS in "${PROCESS_COUNTS[@]}"; do
 
     cat > temp_job_${NPROCS}.slurm << EOF
