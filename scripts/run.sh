@@ -1,5 +1,9 @@
 #!/bin/bash
 
+nvcc src/main.cu src/utils.cu src/phpc_matrix_operations.cu -o bin/main_matmul.out \\
+    -I"\$MPI_INCLUDE_PATH" -L"\$MPI_LIB_PATH" -Isrc \\
+    -lcudart -lmpi -lcublas -lm -arch=sm_70 -lineinfo
+
 PROCESS_COUNTS=(1 4 16)
 for NPROCS in "${PROCESS_COUNTS[@]}"; do
 
@@ -16,13 +20,9 @@ for NPROCS in "${PROCESS_COUNTS[@]}"; do
 MPI_INCLUDE_PATH="/usr/mpi/gcc/openmpi-4.1.0rc5/include"
 MPI_LIB_PATH="/usr/mpi/gcc/openmpi-4.1.0rc5/lib64"
 
-nvcc src/main.cu src/utils.cu src/phpc_matrix_operations.cu -o bin/main_matmul_${NPROCS}.out \\
-    -I"\$MPI_INCLUDE_PATH" -L"\$MPI_LIB_PATH" -Isrc \\
-    -lcudart -lmpi -lcublas -lm -arch=sm_70 -lineinfo
-
 srun --mpi=pmix_v3 bash -c '
     export CUDA_VISIBLE_DEVICES=\$SLURM_LOCALID
-    bin/main_matmul_${NPROCS}.out
+    bin/main_matmul.out
 '
 EOF
 
