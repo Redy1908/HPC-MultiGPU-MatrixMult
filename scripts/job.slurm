@@ -16,17 +16,9 @@ for NPROCS in "${PROCESS_COUNTS[@]}"; do
 MPI_INCLUDE_PATH="/usr/mpi/gcc/openmpi-4.1.0rc5/include"
 MPI_LIB_PATH="/usr/mpi/gcc/openmpi-4.1.0rc5/lib64"
 
-# Compilazione con controllo errori
 nvcc src/main.cu src/utils.cu src/phpc_matrix_operations.cu -o bin/main_matmul_${NPROCS}.out \\
     -I"\$MPI_INCLUDE_PATH" -L"\$MPI_LIB_PATH" -Isrc \\
     -lcudart -lmpi -lcublas -lm -arch=sm_70 -lineinfo
-
-if [ \$? -ne 0 ]; then
-    echo "Compilation failed for ${NPROCS} processes!"
-    exit 1
-fi
-
-echo "Starting execution with ${NPROCS} processes..."
 
 srun --mpi=pmix_v3 bash -c '
     export CUDA_VISIBLE_DEVICES=\$SLURM_LOCALID
