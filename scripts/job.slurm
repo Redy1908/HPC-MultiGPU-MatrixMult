@@ -1,6 +1,6 @@
 #!/bin/bash
 
-PROCESS_COUNTS=(1 4 16 64 256)
+PROCESS_COUNTS=(1 4 16 64)
 for NPROCS in "${PROCESS_COUNTS[@]}"; do
 
     cat > temp_job_${NPROCS}.slurm << EOF
@@ -27,7 +27,6 @@ srun --mpi=pmix_v3 bash -c '
 EOF
 
     sbatch temp_job_${NPROCS}.slurm
-    echo "Submitted job for $NPROCS processes"
     
     rm temp_job_${NPROCS}.slurm
 done
