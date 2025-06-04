@@ -67,15 +67,6 @@ __global__ void gemm_kernel(double *A, double *B, double *C, int M, int N, int K
   }
 }
 
-int phpc_gemm_sequential(const double *A, int lda, const double *B, int ldb, double *C, int ldc, unsigned int m, unsigned int k, unsigned int n) {
-  for (unsigned int i = 0; i < m; ++i)
-    for (unsigned int j = 0; j < n; ++j)
-      for (unsigned int l = 0; l < k; ++l)
-        C[IDX(i, j, ldc)] += A[IDX(i, l, lda)] * B[IDX(l, j, ldb)];
-
-  return 0;
-}
-
 int phpc_gemm_cuda(const double *a, int lda, const double *b, int ldb, double *c, int ldc, int m, int k, int n, int gpu_count, int grid_width, int grid_height, int block_width) {
   int device_count;
   cudaGetDeviceCount(&device_count);
@@ -165,10 +156,19 @@ int phpc_gemm_cuda(const double *a, int lda, const double *b, int ldb, double *c
   return 0;
 }
 
-void phpc_gemm_summa_cuda(MPI_Comm grid_comm, const double *A, const double *B, double *C, int lda, int ldb, int ldc, int matrices_width, int gpu_count, int grid_width, int grid_height, int block_width) {
+int phpc_gemm_summa_cuda(MPI_Comm grid_comm, const double *A, const double *B, double *C, int lda, int ldb, int ldc, int matrices_width, int gpu_count, int grid_width, int grid_height, int block_width) {
+  assert(grid_comm != NULL);
+  assert(A != NULL);
+  assert(B != NULL);
+  assert(C != NULL);
   assert(lda > 0);
   assert(ldb > 0);
   assert(ldc > 0);
+
+  if (grid_comm == NULL || A == NULL || B == NULL || C == NULL || lda <= 0 || ldb <= 0 || ldc <= 0)
+    return 1;
+
+  int return_code = 0;
 
   int rank, size, dims[2], periods[2], coords[2];
   int remain_dims_row[2] = {0, 1};
@@ -243,21 +243,18 @@ void phpc_gemm_summa_cuda(MPI_Comm grid_comm, const double *A, const double *B, 
       MPI_Bcast((void *)block_b, panel_K_dim * local_B_cols, MPI_DOUBLE, sender_row, col_comm);
     }
 
-    phpc_gemm_sequential(block_a, block_lda, block_b, block_ldb, offset_c, ldc, local_A_rows, panel_K_dim, local_B_cols);
-
-    // phpc_gemm_cuda(block_a, block_lda, block_b, block_ldb, C, ldc, local_A_rows, panel_K_dim, local_B_cols, gpu_count, grid_width, grid_height, block_width);
+    phpc_gemm_cuda(block_a, block_lda, block_b, block_ldb, offset_c, ldc, local_A_rows, panel_K_dim, local_B_cols, gpu_count, grid_width, grid_height, block_width);
   }
 
-  // TODO: gather matrices
-
-  free(buffer_b);
-  free(buffer_a);
+  /* TODO: gather matrices */
 
   MPI_Type_free(&block_c_type);
   MPI_Type_free(&block_b_type);
   MPI_Type_free(&block_a_type);
   MPI_Comm_free(&row_comm);
   MPI_Comm_free(&col_comm);
+
+  return return_code;
 }
 
 #undef IDX
