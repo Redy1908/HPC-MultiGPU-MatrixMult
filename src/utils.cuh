@@ -2,7 +2,7 @@
 #define _PHPC_UTILS_H
 
 #include <cuda_runtime.h>
-#include <mpi/mpi.h>
+#include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
 
