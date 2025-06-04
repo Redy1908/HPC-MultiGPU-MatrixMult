@@ -157,7 +157,7 @@ int phpc_gemm_cuda(const double *a, int lda, const double *b, int ldb, double *c
     cudaMemcpy2DAsync(dev_buffers_c[gpu], dev_n * sizeof(double), c + dev_n * gpu, ldc * sizeof(double), dev_n * sizeof(double), k, cudaMemcpyHostToDevice, streams[gpu]);
 
     /* perform computation */
-    gemm_kernel<<<grid_size, block_size, shared_memory_size, streams[gpu]>>>(dev_buffers_a[gpu], dev_buffers_b[gpu], dev_buffers_c[gpu] + dev_n * gpu, m, k, dev_n);
+    gemm_kernel<<<grid_size, block_size, shared_memory_size, streams[gpu]>>>(dev_buffers_a[gpu], dev_buffers_b[gpu], dev_buffers_c[gpu] + dev_n * gpu, m, dev_n, k);
 
     /* copy result from device to host */
     cudaMemcpy2DAsync(c + dev_n * gpu, ldc * sizeof(double), dev_buffers_c[gpu], dev_n * sizeof(double), dev_n * sizeof(double), m, cudaMemcpyDeviceToHost, streams[gpu]);
