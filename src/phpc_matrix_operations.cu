@@ -74,8 +74,6 @@ void phpc_gemm_summa_cuda(MPI_Comm grid_comm, double *A, double *B, double *C, i
 
   double *d_A_panel, *d_B_panel, *d_C_local_block;
 
-  dim3 actual_dim_grid;
-
   MPI_Comm row_comm, col_comm;
 
   int remain_dims_row[2] = {0, 1};
@@ -130,15 +128,8 @@ void phpc_gemm_summa_cuda(MPI_Comm grid_comm, double *A, double *B, double *C, i
     MPI_Bcast(d_A_panel, local_A_rows * panel_K_dim, MPI_DOUBLE, is_col, row_comm);
     MPI_Bcast(d_B_panel, panel_K_dim * local_B_cols, MPI_DOUBLE, is_row, col_comm);
 
-    if (dim_grid.x == 0 && dim_grid.y == 0) {
-      actual_dim_grid.x = (unsigned int)ceil((double)local_B_cols / dim_block.x);
-      actual_dim_grid.y = (unsigned int)ceil((double)local_A_rows / dim_block.y);
-      actual_dim_grid.z = 1;
-    } else {
-      actual_dim_grid = dim_grid;
-    }
-
-    gemm_kernel<<<actual_dim_grid, dim_block, shared_mem_size>>>(d_A_panel, d_B_panel, d_C_local_block, local_A_rows, local_B_cols, panel_K_dim);
+    dim_grid.z = 1;
+    gemm_kernel<<<dim_grid, dim_block, shared_mem_size>>>(d_A_panel, d_B_panel, d_C_local_block, local_A_rows, local_B_cols, panel_K_dim);
 
     cudaDeviceSynchronize();
   }

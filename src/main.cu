@@ -33,7 +33,13 @@ int main(int argc, char *argv[]) {
 
   int lcm = find_lcm(dims[0], dims[1]);
 
-  ld = 6444;
+  // Possibili dimensioni per i test (il numero di processi utilizzati sarà: 1 4 16 64 256)
+  ld = 256;
+  //ld = 4096;
+  //ld = 8192;
+  //ld = 16384;
+  //ld = 32768;
+
   A = (double *)malloc(ld * ld * sizeof(double));
   B = (double *)malloc(ld * ld * sizeof(double));
   C = (double *)malloc(ld * ld * sizeof(double));
@@ -112,56 +118,180 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  // test di efficienza al crescere delle dimensioni della metrice ed il numero di thread
-  for (Nglob = 2048; Nglob <= 2048 * 3; Nglob = Nglob + 2048) {
-    /*
-     * Test con 1 thread, bisogna considerare che questo test sarà essere molto lento, attualmente lo script limita l'esecuzione a 5 minuti
-     * consiglio di rimuove questo test per testare il codice
-     */
-    MPI_Barrier(MPI_COMM_WORLD);
-    tile_width = 1;
-    check_threads_per_block(prop, tile_width, rank);
-    check_shared_memory_usage(prop, tile_width, rank);
-    dim_block = dim3(tile_width, tile_width, 1);
-    dim_grid = dim3(1, 1, 1);  // forziamo 1 solo blocco per utilizzare 1 solo thread
-    shared_mem_size = 2 * tile_width * tile_width * sizeof(double);
+  // Test di efficienza fissata la dimensione del problema (ld x ld) al crescere del numero di thread
 
-    start_time = get_cur_time();
-    phpc_gemm_summa_cuda(grid_comm, A, B, C, ld, ld, ld, Nglob, Nglob, Nglob, dim_block, dim_grid, shared_mem_size);
-    end_time = get_cur_time() - start_time;
+  Nglob = ld;  // usiamo tutta la memoria allocata
+  double Ndouble = (double)Nglob;
+  int local_rows = Nglob / dims[0];
+  int local_cols = Nglob / dims[1];
 
-    /*
-     * Test con 1024 thread per blocco (GPU LIMIT) e grid size ottimale
-     *
-     * Questo test dovrebbe darci il risultato migliore considerando una matrice abbastanza grande
-     *
-     * La dimensione della griglia viene calcolata automaticamente in modo ottimale dentro summa nel
-     * seguente modo: dim_grid.x = (unsigned int)ceil((double)local_B_cols / dim_block.x);
-     *                grid.y     = (unsigned int)ceil((double)local_A_rows / dim_block.y);
-     *
-     * considerando le dimensioni effettive delle porzioni di matrici che verranno moltiplicate.
-     *
-     * Ad esempio: consideriamo 2 blocchi di matrici 2048x2048, con tile_width = 32, avremo una griglia di 64x64 blocchi
-     * da 1024 thread ciascuno, quindi 64*64*1024 = 4194304 thread = 2048x2048. Questo ci permette di mappare 1:1 i le matrici
-     * con i thread della GPU e di avere il massimo parallelismo possibile.
-     * 
-     * Nel caso in cui le dimensioni delle matrici non siano multipli di tile_width, la funzione ceil() arrotonda per eccesso
-     * le dimensione della griglia assicurando una copertura completa delle matrici con dei blocchi in caso parzialmente utilizzati.
-     *
-     */
-    MPI_Barrier(MPI_COMM_WORLD);
-    tile_width = 32;                                    // block size 32x32 = 1024 threads
-    check_threads_per_block(prop, tile_width, rank);    // controlliamo lo stesso di non superare i 1024 threads
-    check_shared_memory_usage(prop, tile_width, rank);  // controlliamo di avere abbastanza shared memory per copiarci 2 tile 32x32 di double
-    dim_block = dim3(tile_width, tile_width, 1);
-    dim_grid = dim3(0, 0, 0);  // quando passiamo dim3(0,0,0) la dimensione della griglia viene calcolata automaticamente in modo ottimale dentro summa
-    shared_mem_size = 2 * tile_width * tile_width * sizeof(double);
+  // Array per memorizzare i risultati dei test
+  double test_times[5];
+  int test_configs[5][2];  // [tile_width, threads_per_block]
+  dim3 test_grids[5];
+  double baseline_time = 0.0;
 
-    start_time = get_cur_time();
-    phpc_gemm_summa_cuda(grid_comm, A, B, C, ld, ld, ld, Nglob, Nglob, Nglob, dim_block, dim_grid, shared_mem_size);
-    end_time = get_cur_time() - start_time;
+  // ==================================================
+  // TEST 1
+  // ==================================================
+  if (rank == 0) printf("Running Test 1: tile_width = 1...\n");
+  MPI_Barrier(MPI_COMM_WORLD);
+  tile_width = 1;
+  check_threads_per_block(prop, tile_width, rank);
+  check_shared_memory_usage(prop, tile_width, rank);
+  dim_block = dim3(tile_width, tile_width, 1);
+  dim_grid = dim3(1, 1, 1);
+  shared_mem_size = 2 * tile_width * tile_width * sizeof(double);
 
-    // Altri test qui chiamare MPI_Barrier(MPI_COMM_WORLD); prima di ogni test
+  start_time = get_cur_time();
+  phpc_gemm_summa_cuda(grid_comm, A, B, C, ld, ld, ld, Nglob, Nglob, Nglob, dim_block, dim_grid, shared_mem_size);
+  end_time = get_cur_time() - start_time;
+
+  test_times[0] = end_time;
+  test_configs[0][0] = tile_width;
+  test_configs[0][1] = dim_block.x * dim_block.y;
+  test_grids[0] = dim_grid;
+  baseline_time = end_time;
+
+  // ==================================================
+  // TEST 2
+  // ==================================================
+  if (rank == 0) printf("Running Test 2: tile_width = 4...\n");
+  MPI_Barrier(MPI_COMM_WORLD);
+  tile_width = 4;
+  check_threads_per_block(prop, tile_width, rank);
+  check_shared_memory_usage(prop, tile_width, rank);
+  dim_block = dim3(tile_width, tile_width, 1);
+
+  dim_grid.x = (unsigned int)ceil((double)local_cols / dim_block.x);
+  dim_grid.y = (unsigned int)ceil((double)local_rows / dim_block.y);
+  dim_grid.z = 1;
+
+  shared_mem_size = 2 * tile_width * tile_width * sizeof(double);
+
+  start_time = get_cur_time();
+  phpc_gemm_summa_cuda(grid_comm, A, B, C, ld, ld, ld, Nglob, Mglob, Pglob, dim_block, dim_grid, shared_mem_size);
+  end_time = get_cur_time() - start_time;
+
+  test_times[1] = end_time;
+  test_configs[1][0] = tile_width;
+  test_configs[1][1] = dim_block.x * dim_block.y;
+  test_grids[1] = dim_grid;
+
+  // ==================================================
+  // TEST 3
+  // ==================================================
+  if (rank == 0) printf("Running Test 3: tile_width = 8...\n");
+  MPI_Barrier(MPI_COMM_WORLD);
+  tile_width = 8;
+  check_threads_per_block(prop, tile_width, rank);
+  check_shared_memory_usage(prop, tile_width, rank);
+  dim_block = dim3(tile_width, tile_width, 1);
+
+  dim_grid.x = (unsigned int)ceil((double)local_cols / dim_block.x);
+  dim_grid.y = (unsigned int)ceil((double)local_rows / dim_block.y);
+  dim_grid.z = 1;
+
+  shared_mem_size = 2 * tile_width * tile_width * sizeof(double);
+
+  start_time = get_cur_time();
+  phpc_gemm_summa_cuda(grid_comm, A, B, C, ld, ld, ld, Nglob, Mglob, Pglob, dim_block, dim_grid, shared_mem_size);
+  end_time = get_cur_time() - start_time;
+
+  test_times[2] = end_time;
+  test_configs[2][0] = tile_width;
+  test_configs[2][1] = dim_block.x * dim_block.y;
+  test_grids[2] = dim_grid;
+
+  // ==================================================
+  // TEST 4
+  // ==================================================
+  if (rank == 0) printf("Running Test 4: tile_width = 16...\n");
+  MPI_Barrier(MPI_COMM_WORLD);
+  tile_width = 16;
+  check_threads_per_block(prop, tile_width, rank);
+  check_shared_memory_usage(prop, tile_width, rank);
+  dim_block = dim3(tile_width, tile_width, 1);
+
+  dim_grid.x = (unsigned int)ceil((double)local_cols / dim_block.x);
+  dim_grid.y = (unsigned int)ceil((double)local_rows / dim_block.y);
+  dim_grid.z = 1;
+
+  shared_mem_size = 2 * tile_width * tile_width * sizeof(double);
+
+  start_time = get_cur_time();
+  phpc_gemm_summa_cuda(grid_comm, A, B, C, ld, ld, ld, Nglob, Mglob, Pglob, dim_block, dim_grid, shared_mem_size);
+  end_time = get_cur_time() - start_time;
+
+  test_times[3] = end_time;
+  test_configs[3][0] = tile_width;
+  test_configs[3][1] = dim_block.x * dim_block.y;
+  test_grids[3] = dim_grid;
+
+  // ==================================================
+  // TEST 5
+  // ==================================================
+  if (rank == 0) printf("Running Test 5: tile_width = 32..\n");
+  MPI_Barrier(MPI_COMM_WORLD);
+  tile_width = 32;
+  check_threads_per_block(prop, tile_width, rank);
+  check_shared_memory_usage(prop, tile_width, rank);
+  dim_block = dim3(tile_width, tile_width, 1);
+
+  dim_grid.x = (unsigned int)ceil((double)local_cols / dim_block.x);
+  dim_grid.y = (unsigned int)ceil((double)local_rows / dim_block.y);
+  dim_grid.z = 1;
+
+  shared_mem_size = 2 * tile_width * tile_width * sizeof(double);
+
+  start_time = get_cur_time();
+  phpc_gemm_summa_cuda(grid_comm, A, B, C, ld, ld, ld, Nglob, Nglob, Nglob, dim_block, dim_grid, shared_mem_size);
+  end_time = get_cur_time() - start_time;
+
+  test_times[4] = end_time;
+  test_configs[4][0] = tile_width;
+  test_configs[4][1] = dim_block.x * dim_block.y;
+  test_grids[4] = dim_grid;
+
+  // FILE CSV
+  if (rank == 0) {
+    FILE *csv_file;
+    char filename[256];
+    snprintf(filename, sizeof(filename), "logs/performance_%dprocs_%dx%d.csv", size, Nglob, Nglob);
+
+    csv_file = fopen(filename, "w");
+    if (csv_file == NULL) {
+      fprintf(stderr, "Error: Cannot create CSV file %s\n", filename);
+    } else {
+      // Header del CSV
+      fprintf(csv_file, "Test,Processes,Matrix_Size,Tile_Width,Threads_Per_Block,Total_Blocks,Grid_X,Grid_Y,Time_Seconds,GFLOPS,Speedup,Efficiency\n");
+
+      // Calcola GFLOPS di riferimento
+      double total_ops = 2.0 * Ndouble * Ndouble * Ndouble;
+
+      for (int test_id = 0; test_id < 5; test_id++) {
+        int total_blocks = test_grids[test_id].x * test_grids[test_id].y;
+        int total_threads = total_blocks * test_configs[test_id][1];
+        double gflops = total_ops / (test_times[test_id] * 1.0e9);
+        double speedup = baseline_time / test_times[test_id];
+        double efficiency = speedup / total_threads;
+
+        fprintf(csv_file, "%d,%d,%d,%d,%d,%d,%d,%d,%.6f,%.2f,%.2f,%.4f\n",
+                test_id + 1,               // Test number
+                size,                      // Number of MPI processes
+                Nglob,                     // Matrix size
+                test_configs[test_id][0],  // Tile width
+                test_configs[test_id][1],  // Threads per block
+                total_blocks,              // Total blocks
+                test_grids[test_id].x,     // Grid X dimension
+                test_grids[test_id].y,     // Grid Y dimension
+                test_times[test_id],       // Time in seconds
+                gflops,                    // GFLOPS
+                speedup,                   // Speedup vs baseline
+                efficiency);               // Efficiency
+      }
+      fclose(csv_file);
+    }
   }
 
   MPI_Barrier(MPI_COMM_WORLD);

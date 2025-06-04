@@ -1,21 +1,41 @@
 #!/bin/bash
-#SBATCH -p gpus                        # Queue
-#SBATCH --ntasks=16                    # Total number of MPI tasks
-#SBATCH --gpus-per-task=1              # GPUs per task
-#SBATCH --time=00:05:00                # Maximum time limit 5 min (up to 7 days)
-#SBATCH --output=logs/output.log       # Output file
-#SBATCH --error=logs/error.log         # Error file
-#SBATCH --job-name=matrixmul           # Job name
+
+PROCESS_COUNTS=(1 4 16 64 256)
+for NPROCS in "${PROCESS_COUNTS[@]}"; do
+
+    cat > temp_job_${NPROCS}.slurm << EOF
+#!/bin/bash
+#SBATCH -p gpus
+#SBATCH --ntasks=${NPROCS}
+#SBATCH --gpus-per-task=1
+#SBATCH --time=00:10:00
+#SBATCH --output=logs/output_${NPROCS}procs_%j.log
+#SBATCH --error=logs/error_${NPROCS}procs_%j.log
+#SBATCH --job-name=matmul_${NPROCS}p
 
 MPI_INCLUDE_PATH="/usr/mpi/gcc/openmpi-4.1.0rc5/include"
 MPI_LIB_PATH="/usr/mpi/gcc/openmpi-4.1.0rc5/lib64"
 
-nvcc src/main.cu src/utils.cu src/phpc_matrix_operations.cu -o bin/main_matmul.out \
-    -I"$MPI_INCLUDE_PATH" -L"$MPI_LIB_PATH" -Isrc \
-    -lcudart -lmpi -lcublas -lm -arch=sm_70 \
-    -lineinfo
+# Compilazione con controllo errori
+nvcc src/main.cu src/utils.cu src/phpc_matrix_operations.cu -o bin/main_matmul_${NPROCS}.out \\
+    -I"\$MPI_INCLUDE_PATH" -L"\$MPI_LIB_PATH" -Isrc \\
+    -lcudart -lmpi -lcublas -lm -arch=sm_70 -lineinfo
+
+if [ \$? -ne 0 ]; then
+    echo "Compilation failed for ${NPROCS} processes!"
+    exit 1
+fi
+
+echo "Starting execution with ${NPROCS} processes..."
 
 srun --mpi=pmix_v3 bash -c '
-    export CUDA_VISIBLE_DEVICES=$SLURM_LOCALID
-    bin/main_matmul.out
+    export CUDA_VISIBLE_DEVICES=\$SLURM_LOCALID
+    bin/main_matmul_${NPROCS}.out
 '
+EOF
+
+    sbatch temp_job_${NPROCS}.slurm
+    echo "Submitted job for $NPROCS processes"
+    
+    rm temp_job_${NPROCS}.slurm
+done
