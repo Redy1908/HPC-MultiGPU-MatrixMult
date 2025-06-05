@@ -98,7 +98,11 @@ int main(int argc, char *argv[]) {
     if (global_test_passed) {
       printf("Correctness test passed.\n");
     } else {
-      printf("Correctness test FAILED.\n");
+      printf("Correctness test FAILED. Aborting...\n");
+      free(A);
+      free(B);
+      free(C);
+      MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
     }
   }
 
@@ -116,12 +120,12 @@ int main(int argc, char *argv[]) {
   }
 
   /* Lo script eseguira 12 run differenti iterando su queste 2 liste:
-   * 
+   *
    * TASK_COUNTS=(1 4 16)
    * GPU_COUNTS=(1 2 3 4)
-   * 
+   *
    * Ad esempio per 1 processo avremo: (1, 1), (1, 2), (1, 3), (1, 4)
-   * 
+   *
    * Per ognuna di questa configurazioni dobbiamo generare l'apposito file csv in csv/ con i risultati:
    *
    * FILE *csv_file;
