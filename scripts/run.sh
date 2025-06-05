@@ -2,8 +2,17 @@
 
 rm -rf logs/*
 rm -rf csv/*
+rm -rf bin/*
+
+MPI_INCLUDE_PATH="/usr/mpi/gcc/openmpi-4.1.0rc5/include"
+MPI_LIB_PATH="/usr/mpi/gcc/openmpi-4.1.0rc5/lib64"
+
+nvcc src/main.cu src/utils.cu src/phpc_matrix_operations.cu -o bin/main_matmul.out \
+    -I"$MPI_INCLUDE_PATH" -L"$MPI_LIB_PATH" -Isrc \
+    -lcudart -lmpi -lcublas -lm -arch=sm_70 -lineinfo
 
 PROCESS_COUNTS=(1 4 16)
+
 for NPROCS in "${PROCESS_COUNTS[@]}"; do
 
     cat > temp_job_${NPROCS}.slurm << EOF
@@ -18,14 +27,7 @@ for NPROCS in "${PROCESS_COUNTS[@]}"; do
 #SBATCH --error=logs/error_${NPROCS}process.log
 #SBATCH --job-name=matmul_${NPROCS}process
 
-MPI_INCLUDE_PATH="/usr/mpi/gcc/openmpi-4.1.0rc5/include"
-MPI_LIB_PATH="/usr/mpi/gcc/openmpi-4.1.0rc5/lib64"
-
-nvcc src/main.cu src/utils.cu src/phpc_matrix_operations.cu -o bin/main_matmul_${NPROCS}.out \\
-    -I"\$MPI_INCLUDE_PATH" -L"\$MPI_LIB_PATH" -Isrc \\
-    -lcudart -lmpi -lcublas -lm -arch=sm_70 -lineinfo
-
-srun bin/main_matmul_${NPROCS}.out
+srun bin/main_matmul.out
 EOF
 
     sbatch temp_job_${NPROCS}.slurm
