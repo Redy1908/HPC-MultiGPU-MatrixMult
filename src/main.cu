@@ -126,7 +126,7 @@ int main(int argc, char *argv[]) {
    *
    * Ad esempio per 1 processo avremo: (1, 1), (1, 2), (1, 3), (1, 4)
    *
-   * Per ognuna di questa configurazioni dobbiamo generare l'apposito file csv in csv/ con i risultati:
+   * Per ognuna di questa configurazioni dobbiamo generare l'apposito file csv in csv/ con i risultati. Basta fare:
    *
    * FILE *csv_file;
    * char filename[256];
