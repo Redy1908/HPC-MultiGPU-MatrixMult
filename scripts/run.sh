@@ -25,8 +25,8 @@ for NTASK in "${TASK_COUNTS[@]}"; do
 #SBATCH --gpus-per-task=${NGPU}
 #SBATCH --cpus-per-task=1
 #SBATCH --time=00:10:00
-#SBATCH --output=logs/output_${NTASK}_${NGPU}process.log
-#SBATCH --error=logs/error_${NTASK}_${NGPU}process.log
+#SBATCH --output=logs/output_${NTASK}task_${NGPU}gpu.log
+#SBATCH --error=logs/error_${NTASK}task_${NGPU}gpu.log
 #SBATCH --job-name=mat_mul
 
 srun bin/main_matmul.out
