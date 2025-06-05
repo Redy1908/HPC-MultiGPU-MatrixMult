@@ -115,13 +115,18 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  /* Per salvare i risultati dei test in un file CSV al variare del numero di processi inizializzare il file nel seguente modo:
-   *
-   * I file csv saranno in csv/
+  /* Lo script eseguira 12 run differenti iterando su queste 2 liste:
+   * 
+   * TASK_COUNTS=(1 4 16)
+   * GPU_COUNTS=(1 2 3 4)
+   * 
+   * Ad esempio per 1 processo avremo: (1, 1), (1, 2), (1, 3), (1, 4)
+   * 
+   * Per ognuna di questa configurazioni dobbiamo generare l'apposito file csv in csv/ con i risultati:
    *
    * FILE *csv_file;
    * char filename[256];
-   * snprintf(filename, sizeof(filename), "csv/performance_%dprocs_%dgpu.csv", size, gpu_count);
+   * snprintf(filename, sizeof(filename), "csv/performance_%dtask_%dgpu.csv", size, gpu_count);
    * csv_file = fopen(filename, "w");
    */
 
