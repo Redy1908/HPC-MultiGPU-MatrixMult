@@ -25,10 +25,7 @@ nvcc src/main.cu src/utils.cu src/phpc_matrix_operations.cu -o bin/main_matmul_$
     -I"\$MPI_INCLUDE_PATH" -L"\$MPI_LIB_PATH" -Isrc \\
     -lcudart -lmpi -lcublas -lm -arch=sm_70 -lineinfo
 
-srun bash -c '
-    export CUDA_VISIBLE_DEVICES=\$SLURM_LOCALID
-    bin/main_matmul_${NPROCS}.out
-'
+srun bin/main_matmul_${NPROCS}.out
 EOF
 
     sbatch temp_job_${NPROCS}.slurm
