@@ -10,6 +10,8 @@ for NPROCS in "${PROCESS_COUNTS[@]}"; do
 #!/bin/bash
 #SBATCH -p gpus
 #SBATCH --ntasks=${NPROCS}
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=1
 #SBATCH --gpus-per-task=1
 #SBATCH --time=00:10:00
 #SBATCH --output=logs/output_${NPROCS}process.log
@@ -23,7 +25,7 @@ nvcc src/main.cu src/utils.cu src/phpc_matrix_operations.cu -o bin/main_matmul_$
     -I"\$MPI_INCLUDE_PATH" -L"\$MPI_LIB_PATH" -Isrc \\
     -lcudart -lmpi -lcublas -lm -arch=sm_70 -lineinfo
 
-srun --mpi=pmix_v3 bash -c '
+srun bash -c '
     export CUDA_VISIBLE_DEVICES=\$SLURM_LOCALID
     bin/main_matmul_${NPROCS}.out
 '
