@@ -119,32 +119,30 @@ int phpc_gemm_cuda(const double *a, int lda, const double *b, int ldb, double *c
     cudaSetDevice(gpu);
     cudaError_t status;
 
-    status = cudaMalloc(&(dev_buffers_a[gpu]), m * k * sizeof(double));
+    status = cudaStreamCreate(&(streams[gpu]));
+    if (status != cudaSuccess) {
+      return_code = 1;
+      break;
+    }
+    launched_kernels++;
+
+    status = cudaMallocAsync(&(dev_buffers_a[gpu]), m * k * sizeof(double), streams[gpu]);
     if (status != cudaSuccess) {
       return_code = 1;
       break;
     }
 
-    status = cudaMalloc(&(dev_buffers_b[gpu]), k * dev_n * sizeof(double));
+    status = cudaMallocAsync(&(dev_buffers_b[gpu]), k * dev_n * sizeof(double), streams[gpu]);
     if (status != cudaSuccess) {
-      cudaFree(dev_buffers_a[gpu]);
+      cudaFreeAsync(dev_buffers_a[gpu], streams[gpu]);
       return_code = 1;
       break;
     }
 
-    cudaMalloc(&(dev_buffers_c[gpu]), k * dev_n * sizeof(double));
+    status = cudaMallocAsync(&(dev_buffers_c[gpu]), m * dev_n * sizeof(double), streams[gpu]);
     if (status != cudaSuccess) {
-      cudaFree(dev_buffers_b[gpu]);
-      cudaFree(dev_buffers_a[gpu]);
-      return_code = 1;
-      break;
-    }
-
-    cudaStreamCreate(&(streams[gpu]));
-    if (status != cudaSuccess) {
-      cudaFree(dev_buffers_c[gpu]);
-      cudaFree(dev_buffers_b[gpu]);
-      cudaFree(dev_buffers_a[gpu]);
+      cudaFreeAsync(dev_buffers_b[gpu], streams[gpu]);
+      cudaFreeAsync(dev_buffers_a[gpu], streams[gpu]);
       return_code = 1;
       break;
     }
@@ -152,24 +150,23 @@ int phpc_gemm_cuda(const double *a, int lda, const double *b, int ldb, double *c
     /* copy from host to device */
     cudaMemcpy2DAsync(dev_buffers_a[gpu], k * sizeof(double), a, lda * sizeof(double), k * sizeof(double), m, cudaMemcpyHostToDevice, streams[gpu]);
     cudaMemcpy2DAsync(dev_buffers_b[gpu], dev_n * sizeof(double), b + dev_n * gpu, ldb * sizeof(double), dev_n * sizeof(double), k, cudaMemcpyHostToDevice, streams[gpu]);
-    cudaMemcpy2DAsync(dev_buffers_c[gpu], dev_n * sizeof(double), c + dev_n * gpu, ldc * sizeof(double), dev_n * sizeof(double), k, cudaMemcpyHostToDevice, streams[gpu]);
+    cudaMemcpy2DAsync(dev_buffers_c[gpu], dev_n * sizeof(double), c + dev_n * gpu, ldc * sizeof(double), dev_n * sizeof(double), m, cudaMemcpyHostToDevice, streams[gpu]);
 
     /* perform computation */
-    gemm_kernel<<<grid_size, block_size, shared_memory_size, streams[gpu]>>>(dev_buffers_a[gpu], dev_buffers_b[gpu], dev_buffers_c[gpu] + dev_n * gpu, m, dev_n, k);
+    gemm_kernel<<<grid_size, block_size, shared_memory_size, streams[gpu]>>>(dev_buffers_a[gpu], dev_buffers_b[gpu], dev_buffers_c[gpu], m, dev_n, k);
 
     /* copy result from device to host */
     cudaMemcpy2DAsync(c + dev_n * gpu, ldc * sizeof(double), dev_buffers_c[gpu], dev_n * sizeof(double), dev_n * sizeof(double), m, cudaMemcpyDeviceToHost, streams[gpu]);
 
-    launched_kernels++;
+    cudaFreeAsync(dev_buffers_c[gpu], streams[gpu]);
+    cudaFreeAsync(dev_buffers_b[gpu], streams[gpu]);
+    cudaFreeAsync(dev_buffers_a[gpu], streams[gpu]);
   }
 
   for (int gpu = 0; gpu < launched_kernels; gpu++) {
     cudaSetDevice(gpu);
     cudaStreamSynchronize(streams[gpu]);
     cudaStreamDestroy(streams[gpu]);
-    cudaFree(&(dev_buffers_c[gpu]));
-    cudaFree(&(dev_buffers_b[gpu]));
-    cudaFree(&(dev_buffers_a[gpu]));
   }
 
   free(streams);
@@ -203,7 +200,7 @@ int phpc_gemm_summa_cuda(MPI_Comm grid_comm, const double *A, const double *B, d
   int local_B_cols = matrices_width / dims[1];
 
   /* only perfectly divisible matrices for semplicity */
-  if (matrices_width % dims[0] != 0 || matrices_width % lcm != 0) {
+  if (matrices_width % dims[0] != 0 || matrices_width % dims[1] != 0 || matrices_width % lcm != 0) {
     MPI_Comm_free(&row_comm);
     MPI_Comm_free(&col_comm);
     return 2;
@@ -277,10 +274,11 @@ int phpc_gemm_summa_cuda(MPI_Comm grid_comm, const double *A, const double *B, d
 
   /* gather matrices */
   /* there's room for optimization by replacing bcasts with gathers but with matrices blocks it's a bit complex */
-  for (size_t i = 0; i < size; i++) {
-    int sender_column = i % dims[1];
-    int sender_row = i / dims[0];
-    double *c_start = C + sender_row * ldc * local_A_rows + sender_column * local_B_cols;
+  for (int i = 0; i < size; i++) {
+    int coords[2];
+    MPI_Cart_coords(grid_comm, i, 2, coords);
+
+    double *c_start = C + ldc * coords[0] * local_A_rows + coords[1] * local_B_cols;
     MPI_Bcast(c_start, 1, block_c_type, i, grid_comm);
   }
 
