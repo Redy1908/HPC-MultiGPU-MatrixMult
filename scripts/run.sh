@@ -21,8 +21,8 @@ for NTASK in "${TASK_COUNTS[@]}"; do
 #!/bin/bash
 #SBATCH -p gpus
 #SBATCH --ntasks=${NTASK}
-#SBATCH --ntasks-per-node=${NGPU}
-#SBATCH --gpus-per-task=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --gpus-per-task=${NGPU}
 #SBATCH --cpus-per-task=1
 #SBATCH --time=00:10:00
 #SBATCH --output=logs/output_${NTASK}_${NGPU}process.log
