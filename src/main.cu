@@ -111,14 +111,18 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  // Array per memorizzare i risultati dei test
-  double test_times[5];
-  int test_configs[5][2];  // [tile_width, threads_per_block]
-  dim3 test_grids[5];
-  double baseline_time = 0.0;
+  /* Per salvare i risultati dei test in un file CSV al variare del numero di processi inizializzare il file nel seguente modo:
+   *
+   * I file csv saranno in csv/
+   * 
+   * FILE *csv_file;
+   * char filename[256];
+   * snprintf(filename, sizeof(filename), "csv/performance_%dprocs.csv", size);
+   * csv_file = fopen(filename, "w");
+   */
 
   // ==================================================
-  // TEST 1 - 1 solo thread 
+  // TEST 1 - 1 solo thread
   // ==================================================
   if (rank == 0) printf("Running Test 1: tile_width = 1...\n");
   MPI_Barrier(MPI_COMM_WORLD);
@@ -132,12 +136,6 @@ int main(int argc, char *argv[]) {
   start_time = get_cur_time();
   phpc_gemm_summa_cuda(grid_comm, A, B, C, N, dim_block, dim_grid, shared_mem_size);
   end_time = get_cur_time() - start_time;
-
-  test_times[0] = end_time;
-  test_configs[0][0] = tile_width;
-  test_configs[0][1] = dim_block.x * dim_block.y;
-  test_grids[0] = dim_grid;
-  baseline_time = end_time;
 
   // ==================================================
   // TEST 2
@@ -159,11 +157,6 @@ int main(int argc, char *argv[]) {
   phpc_gemm_summa_cuda(grid_comm, A, B, C, N, dim_block, dim_grid, shared_mem_size);
   end_time = get_cur_time() - start_time;
 
-  test_times[1] = end_time;
-  test_configs[1][0] = tile_width;
-  test_configs[1][1] = dim_block.x * dim_block.y;
-  test_grids[1] = dim_grid;
-
   // ==================================================
   // TEST 3
   // ==================================================
@@ -183,11 +176,6 @@ int main(int argc, char *argv[]) {
   start_time = get_cur_time();
   phpc_gemm_summa_cuda(grid_comm, A, B, C, N, dim_block, dim_grid, shared_mem_size);
   end_time = get_cur_time() - start_time;
-
-  test_times[2] = end_time;
-  test_configs[2][0] = tile_width;
-  test_configs[2][1] = dim_block.x * dim_block.y;
-  test_grids[2] = dim_grid;
 
   // ==================================================
   // TEST 4
@@ -209,11 +197,6 @@ int main(int argc, char *argv[]) {
   phpc_gemm_summa_cuda(grid_comm, A, B, C, N, dim_block, dim_grid, shared_mem_size);
   end_time = get_cur_time() - start_time;
 
-  test_times[3] = end_time;
-  test_configs[3][0] = tile_width;
-  test_configs[3][1] = dim_block.x * dim_block.y;
-  test_grids[3] = dim_grid;
-
   // ==================================================
   // TEST 5
   // ==================================================
@@ -233,50 +216,6 @@ int main(int argc, char *argv[]) {
   start_time = get_cur_time();
   phpc_gemm_summa_cuda(grid_comm, A, B, C, N, dim_block, dim_grid, shared_mem_size);
   end_time = get_cur_time() - start_time;
-
-  test_times[4] = end_time;
-  test_configs[4][0] = tile_width;
-  test_configs[4][1] = dim_block.x * dim_block.y;
-  test_grids[4] = dim_grid;
-
-  // FILE CSV
-  if (rank == 0) {
-    FILE *csv_file;
-    char filename[256];
-    snprintf(filename, sizeof(filename), "csv/performance_%dprocs.csv", size);
-
-    csv_file = fopen(filename, "w");
-    if (csv_file == NULL) {
-      fprintf(stderr, "Error: Cannot create CSV file %s\n", filename);
-    } else {
-      fprintf(csv_file, "Test,Processes,Matrix_Size,Tile_Width,Threads_Per_Block,Total_Blocks,Grid_X,Grid_Y,Time_Seconds,GFLOPS,Speedup,Efficiency\n");
-
-      double total_ops = 2.0 * N * N * N;
-
-      for (int test_id = 0; test_id < 5; test_id++) {
-        int total_blocks = test_grids[test_id].x * test_grids[test_id].y;
-        int total_threads = total_blocks * test_configs[test_id][1];
-        double gflops = total_ops / (test_times[test_id] * 1.0e9);
-        double speedup = baseline_time / test_times[test_id];
-        double efficiency = speedup / total_threads;
-
-        fprintf(csv_file, "%d,%d,%d,%d,%d,%d,%d,%d,%.6f,%.2f,%.2f,%.4f\n",
-                test_id + 1,               // Test number
-                size,                      // Number of MPI processes
-                N,                         // Matrix size
-                test_configs[test_id][0],  // Tile width
-                test_configs[test_id][1],  // Threads per block
-                total_blocks,              // Total blocks
-                test_grids[test_id].x,     // Grid X dimension
-                test_grids[test_id].y,     // Grid Y dimension
-                test_times[test_id],       // Time in seconds
-                gflops,                    // GFLOPS
-                speedup,                   // Speedup vs baseline
-                efficiency);               // Efficiency
-      }
-      fclose(csv_file);
-    }
-  }
 
   MPI_Barrier(MPI_COMM_WORLD);
 
