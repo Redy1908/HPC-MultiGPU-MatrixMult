@@ -1,3 +1,5 @@
+#include <stdio.h>
+
 #include "phpc_matrix_operations.cuh"
 #include "utils.cuh"
 
@@ -11,6 +13,7 @@ int main(int argc, char *argv[]) {
   int tile_width;
   cudaDeviceProp prop;
   MPI_Comm grid_comm;
+  int gpu_count = 1;
 
   MPI_Init(&argc, &argv);
 
@@ -73,7 +76,8 @@ int main(int argc, char *argv[]) {
 
   shared_mem_size = 2 * tile_width * tile_width * sizeof(double);
 
-  phpc_gemm_summa_cuda(grid_comm, A, B, C, N, dim_block, dim_grid, shared_mem_size);
+  // phpc_gemm_summa_cuda(grid_comm, A, B, C, N, dim_block, dim_grid, shared_mem_size);
+  phpc_gemm_summa_cuda(grid_comm, A, B, C, N, N, N, N, gpu_count, dim_grid.x, dim_grid.y, tile_width);
 
   MPI_Barrier(grid_comm);
 
@@ -114,7 +118,7 @@ int main(int argc, char *argv[]) {
   /* Per salvare i risultati dei test in un file CSV al variare del numero di processi inizializzare il file nel seguente modo:
    *
    * I file csv saranno in csv/
-   * 
+   *
    * FILE *csv_file;
    * char filename[256];
    * snprintf(filename, sizeof(filename), "csv/performance_%dprocs.csv", size);
@@ -124,18 +128,19 @@ int main(int argc, char *argv[]) {
   // ==================================================
   // TEST 1 - 1 solo thread
   // ==================================================
-  if (rank == 0) printf("Running Test 1: tile_width = 1...\n");
-  MPI_Barrier(MPI_COMM_WORLD);
-  tile_width = 1;
-  check_threads_per_block(prop, tile_width, rank);
-  check_shared_memory_usage(prop, tile_width, rank);
-  dim_block = dim3(tile_width, tile_width, 1);
-  dim_grid = dim3(1, 1, 1);
-  shared_mem_size = 2 * tile_width * tile_width * sizeof(double);
+  // if (rank == 0) printf("Running Test 1: tile_width = 1...\n");
+  // MPI_Barrier(MPI_COMM_WORLD);
+  // tile_width = 1;
+  // check_threads_per_block(prop, tile_width, rank);
+  // check_shared_memory_usage(prop, tile_width, rank);
+  // dim_block = dim3(tile_width, tile_width, 1);
+  // dim_grid = dim3(1, 1, 1);
+  // shared_mem_size = 2 * tile_width * tile_width * sizeof(double);
 
-  start_time = get_cur_time();
-  phpc_gemm_summa_cuda(grid_comm, A, B, C, N, dim_block, dim_grid, shared_mem_size);
-  end_time = get_cur_time() - start_time;
+  // start_time = get_cur_time();
+  // // phpc_gemm_summa_cuda(grid_comm, A, B, C, N, dim_block, dim_grid, shared_mem_size);
+  // phpc_gemm_summa_cuda(grid_comm, A, B, C, N, N, N, N, 1, dim_grid.x, dim_grid.y, tile_width);
+  // end_time = get_cur_time() - start_time;
 
   // ==================================================
   // TEST 2
@@ -154,7 +159,8 @@ int main(int argc, char *argv[]) {
   shared_mem_size = 2 * tile_width * tile_width * sizeof(double);
 
   start_time = get_cur_time();
-  phpc_gemm_summa_cuda(grid_comm, A, B, C, N, dim_block, dim_grid, shared_mem_size);
+  // phpc_gemm_summa_cuda(grid_comm, A, B, C, N, dim_block, dim_grid, shared_mem_size);
+  phpc_gemm_summa_cuda(grid_comm, A, B, C, N, N, N, N, gpu_count, dim_grid.x, dim_grid.y, tile_width);
   end_time = get_cur_time() - start_time;
 
   // ==================================================
@@ -174,7 +180,8 @@ int main(int argc, char *argv[]) {
   shared_mem_size = 2 * tile_width * tile_width * sizeof(double);
 
   start_time = get_cur_time();
-  phpc_gemm_summa_cuda(grid_comm, A, B, C, N, dim_block, dim_grid, shared_mem_size);
+  // phpc_gemm_summa_cuda(grid_comm, A, B, C, N, dim_block, dim_grid, shared_mem_size);
+  phpc_gemm_summa_cuda(grid_comm, A, B, C, N, N, N, N, gpu_count, dim_grid.x, dim_grid.y, tile_width);
   end_time = get_cur_time() - start_time;
 
   // ==================================================
@@ -194,7 +201,8 @@ int main(int argc, char *argv[]) {
   shared_mem_size = 2 * tile_width * tile_width * sizeof(double);
 
   start_time = get_cur_time();
-  phpc_gemm_summa_cuda(grid_comm, A, B, C, N, dim_block, dim_grid, shared_mem_size);
+  // phpc_gemm_summa_cuda(grid_comm, A, B, C, N, dim_block, dim_grid, shared_mem_size);
+  phpc_gemm_summa_cuda(grid_comm, A, B, C, N, N, N, N, gpu_count, dim_grid.x, dim_grid.y, tile_width);
   end_time = get_cur_time() - start_time;
 
   // ==================================================
@@ -214,7 +222,8 @@ int main(int argc, char *argv[]) {
   shared_mem_size = 2 * tile_width * tile_width * sizeof(double);
 
   start_time = get_cur_time();
-  phpc_gemm_summa_cuda(grid_comm, A, B, C, N, dim_block, dim_grid, shared_mem_size);
+  // phpc_gemm_summa_cuda(grid_comm, A, B, C, N, dim_block, dim_grid, shared_mem_size);
+  phpc_gemm_summa_cuda(grid_comm, A, B, C, N, N, N, N, gpu_count, dim_grid.x, dim_grid.y, tile_width);
   end_time = get_cur_time() - start_time;
 
   MPI_Barrier(MPI_COMM_WORLD);
