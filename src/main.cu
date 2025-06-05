@@ -11,9 +11,9 @@ int main(int argc, char *argv[]) {
   double start_time, end_time;
   int shared_mem_size;
   int tile_width;
+  int gpu_count;
   cudaDeviceProp prop;
   MPI_Comm grid_comm;
-  int gpu_count = 1;
 
   MPI_Init(&argc, &argv);
 
@@ -63,6 +63,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
+  gpu_count = get_number_of_gpus();
   prop = set_gpu_and_get_properties(rank);
 
   tile_width = 32;
@@ -120,7 +121,7 @@ int main(int argc, char *argv[]) {
    *
    * FILE *csv_file;
    * char filename[256];
-   * snprintf(filename, sizeof(filename), "csv/performance_%dprocs.csv", size);
+   * snprintf(filename, sizeof(filename), "csv/performance_%dprocs_%dgpu.csv", size, gpu_count);
    * csv_file = fopen(filename, "w");
    */
 

@@ -8,6 +8,7 @@
 extern "C" {
 #endif
 
+int get_number_of_gpus();
 cudaDeviceProp set_gpu_and_get_properties(int rank);
 void check_threads_per_block(cudaDeviceProp prop, int tile_width, int rank);
 void check_shared_memory_usage(cudaDeviceProp prop, int tile_width, int rank);

@@ -5,11 +5,18 @@
 
 #include "utils.cuh"
 
+int get_number_of_gpus() {
+  int device_count;
+  cudaGetDeviceCount(&device_count);
+
+  return device_count;
+}
+
 cudaDeviceProp set_gpu_and_get_properties(int rank) {
   cudaDeviceProp prop;
   int device_count, device;
 
-  cudaGetDeviceCount(&device_count);
+  device_count = get_number_of_gpus();
 
   if (device_count == 0) {
     fprintf(
