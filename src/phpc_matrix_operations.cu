@@ -7,8 +7,6 @@
 #include "phpc_matrix_operations.cuh"
 #include "utils.cuh"
 
-#define IDX(row, col, num_cols) ((row) * (num_cols) + (col))
-
 __global__ void gemm_kernel(double *A, double *B, double *C, int M, int N, int K) {
   extern __shared__ double shared_mem[];
 
@@ -193,7 +191,7 @@ int phpc_gemm_summa_cuda(MPI_Comm grid_comm, const double *A, const double *B, d
   int remain_dims_row[2] = {0, 1};
   int remain_dims_col[2] = {1, 0};
   MPI_Comm row_comm, col_comm;
-  MPI_Comm_size(grid_comm, &rank);
+  MPI_Comm_rank(grid_comm, &rank);
   MPI_Comm_size(grid_comm, &size);
   MPI_Cart_get(grid_comm, 2, dims, periods, coords);
   MPI_Cart_sub(grid_comm, remain_dims_row, &row_comm);
@@ -277,7 +275,14 @@ int phpc_gemm_summa_cuda(MPI_Comm grid_comm, const double *A, const double *B, d
     phpc_gemm_cuda(block_a, block_lda, block_b, block_ldb, offset_c, ldc, local_A_rows, panel_K_dim, local_B_cols, gpu_count, grid_width, grid_height, block_width);
   }
 
-  /* TODO: gather matrices */
+  /* gather matrices */
+  /* there's room for optimization by replacing bcasts with gathers but with matrices blocks it's a bit complex */
+  for (size_t i = 0; i < size; i++) {
+    int sender_column = i % dims[1];
+    int sender_row = i / dims[0];
+    double *c_start = C + sender_row * ldc * local_A_rows + sender_column * local_B_cols;
+    MPI_Bcast(c_start, 1, block_c_type, i, grid_comm);
+  }
 
   MPI_Type_free(&block_c_type);
   MPI_Type_free(&block_b_type);
@@ -287,5 +292,3 @@ int phpc_gemm_summa_cuda(MPI_Comm grid_comm, const double *A, const double *B, d
 
   return return_code;
 }
-
-#undef IDX
