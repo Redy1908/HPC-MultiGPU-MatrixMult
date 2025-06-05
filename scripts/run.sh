@@ -25,7 +25,7 @@ for NTASK in "${TASK_COUNTS[@]}"; do
 #SBATCH --time=00:10:00
 #SBATCH --output=logs/output_${NTASK}process.log
 #SBATCH --error=logs/error_${NTASK}process.log
-#SBATCH --job-name=matmul_${NTASK}process
+#SBATCH --job-name=mat_${NTASK}t
 
 srun bin/main_matmul.out
 EOF
