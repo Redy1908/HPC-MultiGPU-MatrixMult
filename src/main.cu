@@ -144,14 +144,15 @@ int main(int argc, char *argv[]) {
    *
    * TASK_COUNTS=(1 4 16)
    * GPU_COUNTS=(1 2 4)
+   * MATRIX_SIZES=(256)
    *
-   * Ad esempio per 1 processo avremo: (1, 1), (1, 2), (1, 4)
+   * Ad esempio per 1 processo avremo: (1, 1, 256), (1, 2, 256), (1, 4, 256)
    *
    * Per ognuna di questa configurazioni dobbiamo generare l'apposito file csv in csv/ con i risultati. Basta fare:
    *
    * FILE *csv_file;
    * char filename[256];
-   * snprintf(filename, sizeof(filename), "csv/performance_%dtask_%dgpu.csv", size, gpu_count);
+   * snprintf(filename, sizeof(filename), "csv/performanceN%d_%dtasks_%dgpus.csv", N, size, gpu_count);
    * csv_file = fopen(filename, "w");
    */
 
