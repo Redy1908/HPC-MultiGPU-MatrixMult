@@ -119,7 +119,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  /* Lo script eseguira 12 run differenti iterando su queste 2 liste:
+  /* Lo script eseguira 9 run differenti iterando su queste 2 liste:
    *
    * TASK_COUNTS=(1 4 16)
    * GPU_COUNTS=(1 2 4)
