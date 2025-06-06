@@ -12,7 +12,7 @@ nvcc src/main.cu src/utils.cu src/phpc_matrix_operations.cu -o bin/main_matmul.o
     -lcudart -lmpi -lcublas -lm -arch=sm_70 -lineinfo
 
 TASK_COUNTS=(1 4 16)
-GPU_COUNTS=(1 2 3 4)
+GPU_COUNTS=(1 2 4)
 
 for NTASK in "${TASK_COUNTS[@]}"; do
     for NGPU in "${GPU_COUNTS[@]}"; do
