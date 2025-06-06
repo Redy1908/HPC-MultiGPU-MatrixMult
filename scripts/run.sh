@@ -13,26 +13,29 @@ nvcc src/main.cu src/utils.cu src/phpc_matrix_operations.cu -o bin/main_matmul.o
 
 TASK_COUNTS=(1 4 16)
 GPU_COUNTS=(1 2 4)
+MATRIX_SIZES=(256) # Add more sizes as needed, size should be divisible by TASK_COUNTS and GPU_COUNTS
 
 for NTASK in "${TASK_COUNTS[@]}"; do
     for NGPU in "${GPU_COUNTS[@]}"; do
+        for MSIZE in "${MATRIX_SIZES[@]}"; do
 
-        cat > temp_job_${NTASK}_${NGPU}.slurm << EOF
+            cat > temp_job_N${MSIZE}_${NTASK}tasks_${NGPU}gpus.slurm << EOF
 #!/bin/bash
 #SBATCH -p gpus
 #SBATCH --ntasks=${NTASK}
 #SBATCH --ntasks-per-node=1
 #SBATCH --gpus-per-task=${NGPU}
 #SBATCH --cpus-per-task=1
-#SBATCH --time=00:10:00
-#SBATCH --output=logs/output_${NTASK}task_${NGPU}gpu.log
-#SBATCH --error=logs/error_${NTASK}task_${NGPU}gpu.log
+#SBATCH --time=00:20:00
+#SBATCH --output=logs/output_N${MSIZE}_${NTASK}tasks_${NGPU}gpus.log
+#SBATCH --error=logs/error_N${MSIZE}_${NTASK}tasks_${NGPU}gpus.log
 #SBATCH --job-name=mat_mul
 
-srun bin/main_matmul.out
+srun bin/main_matmul.out ${MSIZE}
 EOF
-        sbatch temp_job_${NTASK}_${NGPU}.slurm
-        
-        rm temp_job_${NTASK}_${NGPU}.slurm
+            sbatch temp_job_N${MSIZE}_${NTASK}tasks_${NGPU}gpus.slurm
+            
+            rm temp_job_N${MSIZE}_${NTASK}tasks_${NGPU}gpus.slurm
+        done
     done
-done    
+done   

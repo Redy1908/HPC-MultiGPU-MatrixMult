@@ -4,7 +4,7 @@
 #include "utils.cuh"
 
 int main(int argc, char *argv[]) {
-  int i, j, N;
+  int i, j, N, local_N, local_N_gpu;
   double *A, *B, *C;
   int dims[2], period[2], coord[2], rank, size;
   double start_time, end_time;
@@ -17,11 +17,16 @@ int main(int argc, char *argv[]) {
   MPI_Comm_size(MPI_COMM_WORLD, &size);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-  cudaGetDeviceCount(&gpu_count);
-
-  if (gpu_count <= 0) {
+  if (argc < 2) {
     if (rank == 0) {
-      fprintf(stderr, "Error: No CUDA-capable devices found.\n");
+      fprintf(stderr, "Usage: %s <matrix_size>\n", argv[0]);
+    }
+    MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+  }
+  N = atoi(argv[1]);
+  if (N <= 0) {
+    if (rank == 0) {
+      fprintf(stderr, "Error: Invalid matrix size N = %d. Must be > 0.\n", N);
     }
     MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
   }
@@ -38,23 +43,39 @@ int main(int argc, char *argv[]) {
   dims[0] = (int)round(s);
   dims[1] = (int)round(s);
 
+  if (N % dims[0] != 0) {
+    if (rank == 0) {
+      fprintf(stderr, "Error: Matrix size N (%d) must be divisible by the process grid width (%d).\n", N, dims[0]);
+    }
+    MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+  }
+
+  cudaGetDeviceCount(&gpu_count);
+
+  if (gpu_count <= 0) {
+    if (rank == 0) {
+      fprintf(stderr, "Error: No CUDA-capable devices found.\n");
+    }
+    MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+  }
+
+  local_N = N / dims[0];
+  local_N_gpu = local_N / gpu_count;
+
+  if (local_N % gpu_count != 0) {
+    if (rank == 0) {
+      fprintf(stderr, "Error: Local matrix dimension per rank (%d) must be divisible by gpu_count (%d).\n", local_N, gpu_count);
+    }
+    MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+  }
+
   period[0] = 1;
   period[1] = 1;
   MPI_Cart_create(MPI_COMM_WORLD, 2, dims, period, 0, &grid_comm);
 
-  // Possibili dimensioni per i test (il numero di processi utilizzati sarà: 1 4 16)
-  N = 256;
-  // N = 4096;
-  // N = 8192;
-  // N = 16384;
-  // N = 32768;
-
   A = (double *)malloc(N * N * sizeof(double));
   B = (double *)malloc(N * N * sizeof(double));
   C = (double *)malloc(N * N * sizeof(double));
-
-  int local_N = N / dims[0];
-  int local_N_gpu = local_N / gpu_count;
 
   MPI_Cart_coords(grid_comm, rank, 2, coord);
 
