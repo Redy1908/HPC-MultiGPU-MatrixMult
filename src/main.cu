@@ -166,6 +166,8 @@ int main(int argc, char *argv[]) {
   grid_width = (unsigned int)ceil((double)local_N_gpu / tile_width);
   grid_height = (unsigned int)ceil((double)local_N / tile_width);
 
+  memset(C, 0, N * N * sizeof(double));
+
   start_time = get_cur_time();
   if (phpc_gemm_summa_cuda(grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, tile_width) != 0) {
     fprintf(stderr, "Error in phpc_gemm_summa_cuda with tile_width = %d\n", tile_width);
@@ -198,6 +200,8 @@ int main(int argc, char *argv[]) {
   grid_width = (unsigned int)ceil((double)local_N_gpu / tile_width);
   grid_height = (unsigned int)ceil((double)local_N / tile_width);
 
+  memset(C, 0, N * N * sizeof(double));
+
   start_time = get_cur_time();
   if (phpc_gemm_summa_cuda(grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, tile_width) != 0) {
     fprintf(stderr, "Error in phpc_gemm_summa_cuda with tile_width = %d\n", tile_width);
@@ -215,6 +219,8 @@ int main(int argc, char *argv[]) {
   grid_width = (unsigned int)ceil((double)local_N_gpu / tile_width);
   grid_height = (unsigned int)ceil((double)local_N / tile_width);
 
+  memset(C, 0, N * N * sizeof(double));
+
   start_time = get_cur_time();
   if (phpc_gemm_summa_cuda(grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, tile_width) != 0) {
     fprintf(stderr, "Error in phpc_gemm_summa_cuda with tile_width = %d\n", tile_width);
@@ -231,6 +237,8 @@ int main(int argc, char *argv[]) {
 
   grid_width = (unsigned int)ceil((double)local_N_gpu / tile_width);
   grid_height = (unsigned int)ceil((double)local_N / tile_width);
+
+  memset(C, 0, N * N * sizeof(double));
 
   start_time = get_cur_time();
   if (phpc_gemm_summa_cuda(grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, tile_width) != 0) {
