@@ -10,7 +10,7 @@ From the project's root directory, prepare and launch the jobs:
 
 ## Running Locally
 
-> Your gpu architecture may differ. Adjust the `-arch=sm_89` flag accordingly. For example, use `-arch=sm_80` for Ampere GPUs.
+> Your gpu architecture may differ. Adjust the `-arch=sm_89` flag accordingly.
 > 
 > Your system could have installed OpenMPI in a different location. Adjust the `-I` and `-L` flags accordingly.
 
