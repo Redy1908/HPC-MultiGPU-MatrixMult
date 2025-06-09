@@ -17,7 +17,7 @@ From the project's root directory, prepare and launch the jobs:
 - NVIDIA Nsight Systems (optional, for profiling)
 
 ```bash
-mkdir -p logs csv profiling bin
+mkdir -p csv profiling bin
 nvcc -I/usr/local/openmpi/include -L/usr/local/openmpi/lib -lmpi -lcublas -lm -arch=sm_89 src/main.cu src/utils.cu src/phpc_matrix_operations.cu -o bin/a.out
 mpirun -np <n_process> bin/a.out <matrix_size>
 ```
