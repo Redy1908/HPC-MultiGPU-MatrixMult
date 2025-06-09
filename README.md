@@ -10,15 +10,23 @@ From the project's root directory, prepare and launch the jobs:
 
 ## Running Locally
 
-> Your gpu architecture may differ. Adjust the `-arch=sm_89` flag accordingly.
-> 
-> Your system could have installed OpenMPI in a different location. Adjust the `-I` and `-L` flags accordingly.
+### Requirements
+- NVIDIA GPU
+- CUDA Toolkit
+- OpenMPI
+- NVIDIA Nsight Systems (optional, for profiling)
 
 ```bash
 mkdir -p logs csv profiling bin
 nvcc -I/usr/local/openmpi/include -L/usr/local/openmpi/lib -lmpi -lcublas -lm -arch=sm_89 src/main.cu src/utils.cu src/phpc_matrix_operations.cu -o bin/a.out
 mpirun -np <n_process> bin/a.out <matrix_size>
 ```
+
+> Your gpu architecture may differ. Adjust the `-arch=sm_89` flag accordingly.
+> 
+> Your system could have installed OpenMPI in a different location. Adjust the `-I` and `-L` flags accordingly.
+
+## Outputs
 
 Log files will be created in the `logs/` directory:
 -   Standard output: `logs/output.log`
