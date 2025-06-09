@@ -12,6 +12,7 @@ chmod +x ./scripts/run.sh
 ## Esecuzione in locale
 
 ```bash
+mkdir -p logs csv profiling
 mpirun -np <n_process> a.out <matrix_size>
 ```
 
