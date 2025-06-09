@@ -11,3 +11,5 @@ csv/*
 profiling/*
 
 jupyter/.ipynb_checkpoints/*
+
+a.out
