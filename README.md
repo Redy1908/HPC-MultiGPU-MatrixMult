@@ -1,6 +1,6 @@
 # HPC-MultiGPU-MatrixMult
 
-## Running on a Cluster with SLURM
+## Running on [IBiSco](https://ibiscohpc-wiki.scope.unina.it/)
 
 From the project's root directory, prepare and launch the jobs:
 
