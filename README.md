@@ -5,7 +5,6 @@
 Dalla directory root del progetto lanciare il job sul cluster:
 
 ```bash
-chmod +x ./scripts/run.sh
 ./scripts/run.sh
 ```
 
