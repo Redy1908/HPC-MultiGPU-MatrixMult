@@ -162,8 +162,8 @@ int phpc_gemm_cublas(const double *a, int lda, const double *b, int ldb, double 
     /* perform computation */
     /* note: some subtle math magic to make it work since cublas expects column-major matrices https://stackoverflow.com/a/56064726/17731255 */
     double alpha = 1, beta = 0;
-    cublasSetStream_v2(handle, streams[gpu]);
-    cublasDgemm_v2(handle, CUBLAS_OP_N, CUBLAS_OP_N, dev_n, m, k, &alpha, dev_buffers_b[gpu], n, dev_buffers_a[gpu], k, &beta, dev_buffers_c[gpu], n);
+    cublasSetStream_v2(handles[gpu], streams[gpu]);
+    cublasDgemm_v2(handles[gpu], CUBLAS_OP_N, CUBLAS_OP_N, dev_n, m, k, &alpha, dev_buffers_b[gpu], n, dev_buffers_a[gpu], k, &beta, dev_buffers_c[gpu], n);
 
     /* copy result from device to host */
     cudaMemcpy2DAsync(c + dev_n * gpu, ldc * sizeof(double), dev_buffers_c[gpu], dev_n * sizeof(double), dev_n * sizeof(double), m, cudaMemcpyDeviceToHost, streams[gpu]);
