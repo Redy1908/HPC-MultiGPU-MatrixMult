@@ -154,7 +154,6 @@ int phpc_gemm_cublas(const double *a, int lda, const double *b, int ldb, double 
     }
 
     /* copy from host to device */
-    // cublasSetMatrix(k, m, sizeof(double), a, lda, dev_buffers_a[gpu], k);
     cudaMemcpy2DAsync(dev_buffers_a[gpu], k * sizeof(double), a, lda * sizeof(double), k * sizeof(double), m, cudaMemcpyHostToDevice, streams[gpu]);
     cudaMemcpy2DAsync(dev_buffers_b[gpu], dev_n * sizeof(double), b + dev_n * gpu, ldb * sizeof(double), dev_n * sizeof(double), k, cudaMemcpyHostToDevice, streams[gpu]);
     cudaMemcpy2DAsync(dev_buffers_c[gpu], dev_n * sizeof(double), c + dev_n * gpu, ldc * sizeof(double), dev_n * sizeof(double), m, cudaMemcpyHostToDevice, streams[gpu]);
