@@ -13,7 +13,9 @@ nvcc src/main.cu src/utils.cu src/phpc_matrix_operations.cu -o bin/main_matmul.o
 
 TASK_COUNTS=(1 4 16)
 GPU_COUNTS=(1 2 4)
-MATRIX_SIZES=(256) # Add more sizes as needed, size must be divisible by TASK_COUNTS and GPU_COUNTS
+# Add more sizes as needed, size (N) must be divisible by TASK_COUNTS and GPU_COUNTS
+# N / TASK_COUNTS = K, N % TASK_COUNTS = 0, K % GPU_COUNTS = 0
+MATRIX_SIZES=(256)
 
 for NTASK in "${TASK_COUNTS[@]}"; do
     for NGPU in "${GPU_COUNTS[@]}"; do
