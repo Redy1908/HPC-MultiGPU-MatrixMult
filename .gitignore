@@ -4,18 +4,10 @@
 
 bin/*
 
-!bin/.gitkeep
-
 logs/*
-
-!logs/.gitkeep
 
 csv/*
 
-!csv/.gitkeep
-
 profiling/*
-
-!profiling/.gitkeep
 
 jupyter/.ipynb_checkpoints/*

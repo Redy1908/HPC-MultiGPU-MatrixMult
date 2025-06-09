@@ -1,9 +1,12 @@
 #!/bin/bash
 
-rm -rf logs/*
-rm -rf csv/*
-rm -rf profiling/*
-rm -rf bin/*
+for dir in logs csv profiling bin; do
+    if [ -d "$dir" ]; then
+        rm -rf "$dir"/*
+    else
+        mkdir -p "$dir"
+    fi
+done
 
 MPI_INCLUDE_PATH="/usr/mpi/gcc/openmpi-4.1.0rc5/include"
 MPI_LIB_PATH="/usr/mpi/gcc/openmpi-4.1.0rc5/lib64"
