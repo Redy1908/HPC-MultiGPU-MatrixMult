@@ -314,7 +314,7 @@ int phpc_gemm_summa(gemm_t f, MPI_Comm grid_comm, const double *A, const double 
     return_code = 1;
 
   /* check if any of the processes has failed */
-  MPI_Allgather(MPI_IN_PLACE, &return_code, 1, MPI_INT, MPI_MAX, grid_comm);
+  MPI_Allreduce(MPI_IN_PLACE, &return_code, 1, MPI_INT, MPI_MAX, grid_comm);
   if (return_code != 0)
     return return_code;
 
@@ -347,7 +347,7 @@ int phpc_gemm_summa(gemm_t f, MPI_Comm grid_comm, const double *A, const double 
     return_code = 3;
 
   /* check if any of the processes has failed */
-  MPI_Allgather(MPI_IN_PLACE, &return_code, 1, MPI_INT, MPI_MAX, grid_comm);
+  MPI_Allreduce(MPI_IN_PLACE, &return_code, 1, MPI_INT, MPI_MAX, grid_comm);
   if (return_code != 0)
     goto cleanup; /* simple cleanup goto, no context weirdness, it's fine */
 
@@ -392,7 +392,7 @@ int phpc_gemm_summa(gemm_t f, MPI_Comm grid_comm, const double *A, const double 
 
     /* compute product of the blocks */
     int op_code = f(block_a, block_lda, block_b, block_ldb, offset_c, N, local_A_rows, panel_K_dim, local_B_cols, gpu_count, grid_width, grid_height, block_width);
-    MPI_Allgather(&return_code, &op_code, 1, MPI_INT, MPI_MAX, grid_comm);
+    MPI_Allreduce(&return_code, &op_code, 1, MPI_INT, MPI_MAX, grid_comm);
   }
 
   if (return_code == 0) {
