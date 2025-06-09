@@ -9,6 +9,12 @@ chmod +x ./scripts/run.sh
 ./scripts/run.sh
 ```
 
+## Esecuzione in locale
+
+```bash
+mpirun -np <n_process> a.out <matrix_size>
+```
+
 I file di log verranno creati nella directory `logs/`:
 -   Output standard: `logs/output.log`
 -   Errori: `logs/error.log`

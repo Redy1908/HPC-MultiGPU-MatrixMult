@@ -188,10 +188,15 @@ int phpc_gemm_cublas(const double *a, int lda, const double *b, int ldb, double 
 }
 
 int phpc_gemm_cuda(const double *a, int lda, const double *b, int ldb, double *c, int ldc, int m, int k, int n, int gpu_count, int grid_width, int grid_height, int block_width) {
-  int device_count;
-  cudaGetDeviceCount(&device_count);
+  int max_threads_per_block;
+  cudaDeviceGetAttribute(&max_threads_per_block, cudaDevAttrMaxThreadsPerBlock, 0);
 
-  if (gpu_count <= 0 || gpu_count > device_count || grid_width <= 0 || grid_height <= 0 || block_width * block_width > 1024 || n % gpu_count != 0)
+  int max_shared_memory_per_block;
+  cudaDeviceGetAttribute(&max_shared_memory_per_block, cudaDevAttrMaxSharedMemoryPerBlock, 0);
+
+  int required_shared_memory = 2 * block_width * block_width * sizeof(double);
+
+  if (gpu_count <= 0 || grid_width <= 0 || grid_height <= 0 || block_width * block_width > max_threads_per_block || required_shared_memory > max_shared_memory_per_block || n % gpu_count != 0)
     return 1;
 
   /**
@@ -219,7 +224,6 @@ int phpc_gemm_cuda(const double *a, int lda, const double *b, int ldb, double *c
   int dev_n = n / gpu_count;
   dim3 grid_size(grid_width, grid_height, 1);
   dim3 block_size(block_width, block_width, 1);
-  int shared_memory_size = 2 * block_width * block_width * sizeof(double);
 
   double **dev_buffers_a = (double **)malloc(gpu_count * sizeof(double *));
   double **dev_buffers_b = (double **)malloc(gpu_count * sizeof(double *));
@@ -275,7 +279,7 @@ int phpc_gemm_cuda(const double *a, int lda, const double *b, int ldb, double *c
     cudaMemcpy2DAsync(dev_buffers_c[gpu], dev_n * sizeof(double), c + dev_n * gpu, ldc * sizeof(double), dev_n * sizeof(double), m, cudaMemcpyHostToDevice, streams[gpu]);
 
     /* perform computation */
-    gemm_kernel<<<grid_size, block_size, shared_memory_size, streams[gpu]>>>(dev_buffers_a[gpu], dev_buffers_b[gpu], dev_buffers_c[gpu], m, dev_n, k);
+    gemm_kernel<<<grid_size, block_size, required_shared_memory, streams[gpu]>>>(dev_buffers_a[gpu], dev_buffers_b[gpu], dev_buffers_c[gpu], m, dev_n, k);
 
     /* copy result from device to host */
     cudaMemcpy2DAsync(c + dev_n * gpu, ldc * sizeof(double), dev_buffers_c[gpu], dev_n * sizeof(double), dev_n * sizeof(double), m, cudaMemcpyDeviceToHost, streams[gpu]);
@@ -299,8 +303,8 @@ int phpc_gemm_cuda(const double *a, int lda, const double *b, int ldb, double *c
   return return_code;
 }
 
-int phpc_gemm_summa_cuda(MPI_Comm grid_comm, const double *A, const double *B, double *C, int lda, int ldb, int ldc, int matrices_width, int gpu_count, int grid_width, int grid_height, int block_width) {
-  if (grid_comm == NULL || A == NULL || B == NULL || C == NULL || lda <= 0 || ldb <= 0 || ldc <= 0)
+int phpc_gemm_summa_cuda(MPI_Comm grid_comm, const double *A, const double *B, double *C, int N, int gpu_count, int grid_width, int grid_height, int block_width) {
+  if (grid_comm == NULL || A == NULL || B == NULL || C == NULL || N <= 0)
     return 1;
 
   int return_code = 0;
@@ -317,27 +321,14 @@ int phpc_gemm_summa_cuda(MPI_Comm grid_comm, const double *A, const double *B, d
   MPI_Cart_sub(grid_comm, remain_dims_col, &col_comm);
 
   int lcm = find_lcm(dims[0], dims[1]);
-  int local_A_rows = matrices_width / dims[0];
-  int panel_K_dim = matrices_width / lcm;
-  int local_B_cols = matrices_width / dims[1];
-
-  /* only perfectly divisible matrices for semplicity */
-  if (matrices_width % dims[0] != 0 || matrices_width % dims[1] != 0 || matrices_width % lcm != 0) {
-    MPI_Comm_free(&row_comm);
-    MPI_Comm_free(&col_comm);
-    return 2;
-  }
-
-  /* compute optimal grid size if nothing is provided */
-  if (grid_width == 0 && grid_height == 0) {
-    grid_width = local_B_cols / block_width + (local_B_cols % block_width > 0);
-    grid_height = local_A_rows / block_width + (local_A_rows % block_width > 0);
-  }
+  int local_A_rows = N / dims[0];
+  int panel_K_dim = N / lcm;
+  int local_B_cols = N / dims[1];
 
   /* shift the start of the matrices to the first block actually corresponding to the process */
-  A += coords[0] * lda * local_A_rows + coords[1] * panel_K_dim;
-  B += coords[0] * ldb * panel_K_dim + coords[1] * local_B_cols;
-  double *offset_c = C + coords[0] * ldc * local_A_rows + coords[1] * local_B_cols;
+  A += coords[0] * N * local_A_rows + coords[1] * panel_K_dim;
+  B += coords[0] * N * panel_K_dim + coords[1] * local_B_cols;
+  double *offset_c = C + coords[0] * N * local_A_rows + coords[1] * local_B_cols;
 
   /* prepare buffers to receive blocks from other processes */
   double *buffer_a = (double *)malloc(local_A_rows * panel_K_dim * sizeof(double));
@@ -355,9 +346,9 @@ int phpc_gemm_summa_cuda(MPI_Comm grid_comm, const double *A, const double *B, d
   /* this is due the fact the blocks a process must handle are a portion than the actual dimension of the matrices */
   /* rows of each block are not contiguous in memory */
   MPI_Datatype block_a_type, block_b_type, block_c_type;
-  MPI_Type_vector(local_A_rows, panel_K_dim, lda, MPI_DOUBLE, &block_a_type);
-  MPI_Type_vector(panel_K_dim, local_B_cols, ldb, MPI_DOUBLE, &block_b_type);
-  MPI_Type_vector(local_A_rows, local_B_cols, ldc, MPI_DOUBLE, &block_c_type);
+  MPI_Type_vector(local_A_rows, panel_K_dim, N, MPI_DOUBLE, &block_a_type);
+  MPI_Type_vector(panel_K_dim, local_B_cols, N, MPI_DOUBLE, &block_b_type);
+  MPI_Type_vector(local_A_rows, local_B_cols, N, MPI_DOUBLE, &block_c_type);
   MPI_Type_commit(&block_a_type);
   MPI_Type_commit(&block_b_type);
   MPI_Type_commit(&block_c_type);
@@ -372,7 +363,7 @@ int phpc_gemm_summa_cuda(MPI_Comm grid_comm, const double *A, const double *B, d
 
     if (coords[1] == sender_column) {
       block_a = A;                                                          /* we are sending the block */
-      block_lda = lda;                                                      /* set the leading dimension to the one of the original matrix */
+      block_lda = N;                                                        /* set the leading dimension to the one of the original matrix */
       A += dims[1] * panel_K_dim;                                           /* we may have to send again in the future, skip the pointer to the start of the other block assigned to the process */
       MPI_Bcast((void *)block_a, 1, block_a_type, sender_column, row_comm); /* send the block as a composite data type, so that multiple lines are received as contiguous */
     } else {
@@ -382,8 +373,8 @@ int phpc_gemm_summa_cuda(MPI_Comm grid_comm, const double *A, const double *B, d
 
     if (coords[0] == sender_row) {
       block_b = B;                                                       /* we are sending the block */
-      block_ldb = ldb;                                                   /* set the leading dimension to the one of the original matrix */
-      B += dims[0] * panel_K_dim * ldb;                                  /* we may have to send again in the future, skip the pointer to the start of the other block assigned to the process */
+      block_ldb = N;                                                     /* set the leading dimension to the one of the original matrix */
+      B += dims[0] * panel_K_dim * N;                                    /* we may have to send again in the future, skip the pointer to the start of the other block assigned to the process */
       MPI_Bcast((void *)block_b, 1, block_b_type, sender_row, col_comm); /* send the block as a composite data type, so that multiple lines are received as contiguous */
     } else {
       block_b = buffer_b;                                                                       /* we are receiving, prepare the buffer */
@@ -391,7 +382,7 @@ int phpc_gemm_summa_cuda(MPI_Comm grid_comm, const double *A, const double *B, d
     }
 
     /* compute product of the blocks */
-    phpc_gemm_cuda(block_a, block_lda, block_b, block_ldb, offset_c, ldc, local_A_rows, panel_K_dim, local_B_cols, gpu_count, grid_width, grid_height, block_width);
+    phpc_gemm_cuda(block_a, block_lda, block_b, block_ldb, offset_c, N, local_A_rows, panel_K_dim, local_B_cols, gpu_count, grid_width, grid_height, block_width);
   }
 
   /* gather matrices */
@@ -400,7 +391,7 @@ int phpc_gemm_summa_cuda(MPI_Comm grid_comm, const double *A, const double *B, d
     int coords[2];
     MPI_Cart_coords(grid_comm, i, 2, coords);
 
-    double *c_start = C + ldc * coords[0] * local_A_rows + coords[1] * local_B_cols;
+    double *c_start = C + N * coords[0] * local_A_rows + coords[1] * local_B_cols;
     MPI_Bcast(c_start, 1, block_c_type, i, grid_comm);
   }
 
