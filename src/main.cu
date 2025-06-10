@@ -9,6 +9,7 @@ int main(int argc, char *argv[]) {
   int dims[2], period[2], coord[2], rank, size;
   double start_time, end_time;
   int tile_width, grid_width, grid_height;
+  int threads_per_block, num_blocks;
   int gpu_count;
   MPI_Comm grid_comm;
 
@@ -150,7 +151,7 @@ int main(int argc, char *argv[]) {
       MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
     }
 
-    fprintf(csv_file, "M,N,K,n_proc,n_block,n_thread,n_thread_tot,method,time\n");
+    fprintf(csv_file, "M,N,K,n_proc,n_block,n_thread,method,time\n");
   }
 
   // ==================================================
@@ -172,9 +173,10 @@ int main(int argc, char *argv[]) {
   end_time = get_cur_time() - start_time;
 
   if (rank == 0 && csv_file != NULL) {
-    int n_thread_tot = tile_width * tile_width;
-    fprintf(csv_file, "%d,%d,%d,%d,%d,%d,%d,SUMMA_CUDA,%.6f\n",
-            N, N, N, size, 1, n_thread_tot, n_thread_tot, end_time);
+    threads_per_block = tile_width * tile_width;
+    num_blocks = grid_width * grid_height;
+    fprintf(csv_file, "%d,%d,%d,%d,%d,%d,SUMMA_CUDA,%f\n",
+            N, N, N, size, num_blocks, threads_per_block, end_time);
   }
 
   // ==================================================
@@ -196,9 +198,10 @@ int main(int argc, char *argv[]) {
   end_time = get_cur_time() - start_time;
 
   if (rank == 0 && csv_file != NULL) {
-    int n_thread_tot = tile_width * tile_width;
-    fprintf(csv_file, "%d,%d,%d,%d,%d,%d,%d,SUMMA_CUDA,%.6f\n",
-            N, N, N, size, 1, n_thread_tot, n_thread_tot, end_time);
+    threads_per_block = tile_width * tile_width;
+    num_blocks = grid_width * grid_height;
+    fprintf(csv_file, "%d,%d,%d,%d,%d,%d,SUMMA_CUDA,%f\n",
+            N, N, N, size, num_blocks, threads_per_block, end_time);
   }
 
   // ==================================================
@@ -220,9 +223,10 @@ int main(int argc, char *argv[]) {
   end_time = get_cur_time() - start_time;
 
   if (rank == 0 && csv_file != NULL) {
-    int n_thread_tot = tile_width * tile_width;
-    fprintf(csv_file, "%d,%d,%d,%d,%d,%d,%d,SUMMA_CUDA,%.6f\n",
-            N, N, N, size, 1, n_thread_tot, n_thread_tot, end_time);
+    threads_per_block = tile_width * tile_width;
+    num_blocks = grid_width * grid_height;
+    fprintf(csv_file, "%d,%d,%d,%d,%d,%d,SUMMA_CUDA,%f\n",
+            N, N, N, size, num_blocks, threads_per_block, end_time);
   }
 
   // ==================================================
@@ -245,9 +249,10 @@ int main(int argc, char *argv[]) {
   end_time = get_cur_time() - start_time;
 
   if (rank == 0 && csv_file != NULL) {
-    int n_thread_tot = tile_width * tile_width;
-    fprintf(csv_file, "%d,%d,%d,%d,%d,%d,%d,SUMMA_CUDA,%.6f\n",
-            N, N, N, size, 1, n_thread_tot, n_thread_tot, end_time);
+    threads_per_block = tile_width * tile_width;
+    num_blocks = grid_width * grid_height;
+    fprintf(csv_file, "%d,%d,%d,%d,%d,%d,SUMMA_CUDA,%f\n",
+            N, N, N, size, num_blocks, threads_per_block, end_time);
   }
 
   // ==================================================
@@ -270,9 +275,10 @@ int main(int argc, char *argv[]) {
   end_time = get_cur_time() - start_time;
 
   if (rank == 0 && csv_file != NULL) {
-    int n_thread_tot = tile_width * tile_width;
-    fprintf(csv_file, "%d,%d,%d,%d,%d,%d,%d,SUMMA_CUDA,%.6f\n",
-            N, N, N, size, 1, n_thread_tot, n_thread_tot, end_time);
+    threads_per_block = tile_width * tile_width;
+    num_blocks = grid_width * grid_height;
+    fprintf(csv_file, "%d,%d,%d,%d,%d,%d,SUMMA_CUDA,%f\n",
+            N, N, N, size, num_blocks, threads_per_block, end_time);
   }
 
   MPI_Barrier(MPI_COMM_WORLD);
