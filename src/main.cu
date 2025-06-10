@@ -140,21 +140,18 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  /* Lo script eseguira 9 run differenti iterando su queste 2 liste:
-   *
-   * TASK_COUNTS=(1 4 16)
-   * GPU_COUNTS=(1 2 4)
-   * MATRIX_SIZES=(256)
-   *
-   * Ad esempio per 1 processo avremo: (1, 1, 256), (1, 2, 256), (1, 4, 256)
-   *
-   * Per ognuna di questa configurazioni dobbiamo generare l'apposito file csv in csv/ con i risultati. Basta fare:
-   *
-   * FILE *csv_file;
-   * char filename[256];
-   * snprintf(filename, sizeof(filename), "csv/performanceN%d_%dtasks_%dgpus.csv", N, size, gpu_count);
-   * csv_file = fopen(filename, "w");
-   */
+  FILE *csv_file = NULL;
+  char filename[256];
+  if (rank == 0) {
+    snprintf(filename, sizeof(filename), "csv/performanceN%d_%dtasks_%dgpus.csv", N, size, gpu_count);
+    csv_file = fopen(filename, "w");
+    if (csv_file == NULL) {
+      fprintf(stderr, "Error: Could not create CSV file %s\n", filename);
+      MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+    }
+
+    fprintf(csv_file, "M,N,K,n_proc,n_block,n_thread,n_thread_tot,method,time\n");
+  }
 
   // ==================================================
   // TEST 1 - 1 solo thread
@@ -174,6 +171,12 @@ int main(int argc, char *argv[]) {
   }
   end_time = get_cur_time() - start_time;
 
+  if (rank == 0 && csv_file != NULL) {
+    int n_thread_tot = tile_width * tile_width;
+    fprintf(csv_file, "%d,%d,%d,%d,%d,%d,%d,SUMMA_CUDA,%.6f\n",
+            N, N, N, size, 1, n_thread_tot, n_thread_tot, end_time);
+  }
+
   // ==================================================
   // TEST 2
   // ==================================================
@@ -184,11 +187,19 @@ int main(int argc, char *argv[]) {
   grid_width = (unsigned int)ceil((double)local_N_gpu / tile_width);
   grid_height = (unsigned int)ceil((double)local_N / tile_width);
 
+  memset(C, 0, N * N * sizeof(double));
+
   start_time = get_cur_time();
   if (phpc_gemm_summa_cuda(grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, tile_width) != 0) {
     fprintf(stderr, "Error in phpc_gemm_summa_cuda with tile_width = %d\n", tile_width);
   }
   end_time = get_cur_time() - start_time;
+
+  if (rank == 0 && csv_file != NULL) {
+    int n_thread_tot = tile_width * tile_width;
+    fprintf(csv_file, "%d,%d,%d,%d,%d,%d,%d,SUMMA_CUDA,%.6f\n",
+            N, N, N, size, 1, n_thread_tot, n_thread_tot, end_time);
+  }
 
   // ==================================================
   // TEST 3
@@ -207,6 +218,12 @@ int main(int argc, char *argv[]) {
     fprintf(stderr, "Error in phpc_gemm_summa_cuda with tile_width = %d\n", tile_width);
   }
   end_time = get_cur_time() - start_time;
+
+  if (rank == 0 && csv_file != NULL) {
+    int n_thread_tot = tile_width * tile_width;
+    fprintf(csv_file, "%d,%d,%d,%d,%d,%d,%d,SUMMA_CUDA,%.6f\n",
+            N, N, N, size, 1, n_thread_tot, n_thread_tot, end_time);
+  }
 
   // ==================================================
   // TEST 4
@@ -227,6 +244,12 @@ int main(int argc, char *argv[]) {
   }
   end_time = get_cur_time() - start_time;
 
+  if (rank == 0 && csv_file != NULL) {
+    int n_thread_tot = tile_width * tile_width;
+    fprintf(csv_file, "%d,%d,%d,%d,%d,%d,%d,SUMMA_CUDA,%.6f\n",
+            N, N, N, size, 1, n_thread_tot, n_thread_tot, end_time);
+  }
+
   // ==================================================
   // TEST 5
   // ==================================================
@@ -246,7 +269,18 @@ int main(int argc, char *argv[]) {
   }
   end_time = get_cur_time() - start_time;
 
+  if (rank == 0 && csv_file != NULL) {
+    int n_thread_tot = tile_width * tile_width;
+    fprintf(csv_file, "%d,%d,%d,%d,%d,%d,%d,SUMMA_CUDA,%.6f\n",
+            N, N, N, size, 1, n_thread_tot, n_thread_tot, end_time);
+  }
+
   MPI_Barrier(MPI_COMM_WORLD);
+
+  if (rank == 0 && csv_file != NULL) {
+    fclose(csv_file);
+    printf("CSV file written: %s\n", filename);
+  }
 
   if (rank == 0) {
     printf("\nAll tests completed.\n");

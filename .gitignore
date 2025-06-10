@@ -2,13 +2,17 @@
 
 .idea
 
-bin/*
+.venv
 
-logs/*
+bin
 
-csv/*
+logs
 
-profiling/*
+csv
+
+profiling
+
+plots
 
 jupyter/.ipynb_checkpoints/*
 
