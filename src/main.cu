@@ -59,7 +59,6 @@ int main(int argc, char *argv[]) {
   }
 
   local_N = N / dims[0];
-  local_N_gpu = local_N / gpu_count;
 
   if (local_N % gpu_count != 0) {
     if (rank == 0) {
@@ -123,17 +122,8 @@ int main(int argc, char *argv[]) {
   }
 
   // ==================================================
-  // Test di efficienza fissata la dimensione del problema (N x N) al crescere del numero di thread
+  // Test di efficienza
   // ==================================================
-
-  srand(0);
-  for (i = 0; i < N; i++) {
-    for (j = 0; j < N; j++) {
-      *(A + i * N + j) = (double)rand() / RAND_MAX;
-      *(B + i * N + j) = (double)rand() / RAND_MAX;
-      *(C + i * N + j) = 0.0;
-    }
-  }
 
   FILE *csv_file = NULL;
   char filename[256];
@@ -148,12 +138,21 @@ int main(int argc, char *argv[]) {
     fprintf(csv_file, "N,n_proc,n_block,n_thread,method,time\n");
   }
 
+  srand(0);
+  for (i = 0; i < N; i++) {
+    for (j = 0; j < N; j++) {
+      *(A + i * N + j) = (double)rand() / RAND_MAX;
+      *(B + i * N + j) = (double)rand() / RAND_MAX;
+      *(C + i * N + j) = 0.0;
+    }
+  }
+
+  if (rank == 0) printf("Running tests...");
+
   // ==================================================
   // TEST Iterative
   // ==================================================
   if (rank == 0) {
-    printf("\nRunning Test 0: Iterative on rank 0...\n");
-
     memset(C, 0, N * N * sizeof(double));
 
     start_time = get_cur_time();
@@ -166,6 +165,9 @@ int main(int argc, char *argv[]) {
   // ==================================================
   // Test SUMMA CUDA
   // ==================================================
+  MPI_Barrier(MPI_COMM_WORLD);
+  memset(C, 0, N * N * sizeof(double));
+
   start_time = get_cur_time();
   if (phpc_gemm_summa_cuda(grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, tile_width) != 0) {
     fprintf(stderr, "Error in phpc_gemm_summa_cuda with tile_width = %d\n", tile_width);
