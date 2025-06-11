@@ -156,7 +156,24 @@ int main(int argc, char *argv[]) {
   }
 
   // ==================================================
-  // TEST 1 - 1 solo thread
+  // TEST 0 - Iterative
+  // ==================================================
+
+  if (rank == 0) {
+    printf("\nRunning Test 0: Iterative on rank 0...\n");
+
+    memset(C, 0, N * N * sizeof(double));
+
+    start_time = get_cur_time();
+    phpc_gemm_iterative(A, B, C, N);
+    end_time = get_cur_time() - start_time;
+
+    fprintf(csv_file, "%d,%d,%d,%d,ITERATIVE,%f\n",
+            N, size, 0, 0, end_time);
+  }
+
+  // ==================================================
+  // TEST 1 - only 1 thread
   // ==================================================
   MPI_Barrier(MPI_COMM_WORLD);
   tile_width = 1;
