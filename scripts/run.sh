@@ -28,7 +28,7 @@ echo " "
 
 JOBS_IDS=()
 
-echo "Starting submission of SLURM jobs based on CSV files in tests/ ..."
+echo "Generating and submitting SLURM jobs based on CSV files in the 'tests' directory..."
 CSV_FILES_DIR="tests"
 
 for csv_file_path in "$CSV_FILES_DIR"/*.csv; do
@@ -93,7 +93,7 @@ done
 
 echo " "
 if [ ${#JOBS_IDS[@]} -eq 0 ]; then
-    echo "No SLURM jobs were submitted. Check CSV files in tests/ and their content."
+    echo "No SLURM jobs were submitted."
     echo "Skipping plot job submission."
 else
     echo "All SLURM jobs submitted."
