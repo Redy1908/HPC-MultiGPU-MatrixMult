@@ -20,7 +20,7 @@ int main(int argc, char *argv[]) {
 
   if (argc < 3) {
     if (rank == 0) {
-      fprintf(stderr, "Usage: %s <matrix_size> <num_tile_widths> <tile_width1> <tile_width2> ...\n", argv[0]);
+      fprintf(stderr, "Usage: %s <matrix_size> <num_tile_width> <tile_width1> <tile_width2> ...\n", argv[0]);
     }
     MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
   }
