@@ -5,7 +5,7 @@
 #include "utils.cuh"
 
 int main(int argc, char *argv[]) {
-  int i, j, N, local_N, local_N_gpu;
+  int i, j, N, local_N;
   double *A, *B, *C;
   int dims[2], period[2], coord[2], rank, size;
   double start_time, end_time;
@@ -88,7 +88,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  if (rank == 0) printf("Running correctness test: tile_width = %d...\n", tile_width);
+  if (rank == 0) printf("\nRunning correctness test...\n");
 
   if (phpc_gemm_summa_cuda(grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, tile_width) != 0) {
     fprintf(stderr, "Error in phpc_gemm_summa_cuda\n");
@@ -147,7 +147,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  if (rank == 0) printf("Running tests...");
+  if (rank == 0) printf("\nRunning tests...");
 
   // ==================================================
   // TEST Iterative
