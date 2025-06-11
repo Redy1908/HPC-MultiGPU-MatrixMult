@@ -98,9 +98,6 @@ int phpc_gemm_cublas(const double *a, int lda, const double *b, int ldb, double 
 
   int return_code = 0;
   int dev_n = n / gpu_count;
-  dim3 grid_size(grid_width, grid_height, 1);
-  dim3 block_size(block_width, block_width, 1);
-  int shared_memory_size = 2 * block_width * block_width * sizeof(double);
 
   double **dev_buffers_a = (double **)malloc(gpu_count * sizeof(double *));
   double **dev_buffers_b = (double **)malloc(gpu_count * sizeof(double *));
@@ -160,7 +157,7 @@ int phpc_gemm_cublas(const double *a, int lda, const double *b, int ldb, double 
 
     /* perform computation */
     /* note: some subtle math magic to make it work since cublas expects column-major matrices https://stackoverflow.com/a/56064726/17731255 */
-    double alpha = 1, beta = 0;
+    double alpha = 1, beta = 1;
     cublasSetStream_v2(handles[gpu], streams[gpu]);
     cublasDgemm_v2(handles[gpu], CUBLAS_OP_N, CUBLAS_OP_N, dev_n, m, k, &alpha, dev_buffers_b[gpu], n, dev_buffers_a[gpu], k, &beta, dev_buffers_c[gpu], n);
 
