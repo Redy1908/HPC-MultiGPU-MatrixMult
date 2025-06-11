@@ -43,10 +43,6 @@ for csv_file_path in "$CSV_FILES_DIR"/*.csv; do
 
     row_num=0
       while IFS=, read -r matrix_width processes GPU_number tile_width grid_width grid_height; do
-        if [[ "$matrix_width" == "matrix_width" && $row_num -eq 0 ]]; then # Adjust header check if necessary
-            row_num=$((row_num + 1))
-            continue
-        fi
         row_num=$((row_num + 1))
 
         MSIZE=$(echo "$matrix_width" | xargs)
