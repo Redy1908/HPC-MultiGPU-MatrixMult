@@ -1,5 +1,5 @@
 #include <assert.h>
-#include <mpi/mpi.h>
+#include <mpi.h>
 
 #include "../phpc_matrix_operations.cuh"
 
@@ -23,9 +23,9 @@ int main(int argc, char **argv) {
   MPI_Cart_create(MPI_COMM_WORLD, 2, dims, period, 0, &grid_comm);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-  float *a = (float *)malloc(width * width * sizeof(float));
-  float *b = (float *)malloc(width * width * sizeof(float));
-  float *c = (float *)malloc(width * width * sizeof(float));
+  double *a = (double *)malloc(width * width * sizeof(double));
+  double *b = (double *)malloc(width * width * sizeof(double));
+  double *c = (double *)malloc(width * width * sizeof(double));
 
   assert(a != NULL && b != NULL && c != NULL);
 
@@ -40,7 +40,7 @@ int main(int argc, char **argv) {
   if (rank == 0) {
     for (size_t i = 0; i < width; i++) {
       for (size_t j = 0; j < width; j++)
-        printf("%.1f ", c[i * width + j]);
+        printf("%.1lf ", c[i * width + j]);
 
       printf("\n");
     }
