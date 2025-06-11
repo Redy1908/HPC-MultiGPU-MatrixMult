@@ -24,6 +24,9 @@ TASK_COUNTS=(1 4 16)
 GPU_COUNTS=(1 2 4)
 MATRIX_SIZES=(256)
 
+# ensure 1 is always present since it is used for the calculation of baseline
+TILE_WIDTH=(1 4 8 16 32)
+
 # Array to hold job IDs used for crating job dependencies for the analysis job
 JOBS_IDS=()
 
@@ -48,7 +51,7 @@ srun nsys profile \
     --force-overwrite true \
     --gpu-metrics-device=all \
     --output=profiling/profile_N${MSIZE}_${NTASK}tasks_${NGPU}gpus_procid\$SLURM_PROCID \
-    bin/main_matmul.out ${MSIZE}
+    bin/main_matmul.out ${MSIZE} "${TILE_WIDTH[*]}" "${TILE_WIDTH[*]}"
 EOF
             JOB_OUTPUT=$(sbatch temp_job_N${MSIZE}_${NTASK}tasks_${NGPU}gpus.slurm)
             JOB_ID=$(echo "$JOB_OUTPUT" | grep -o '[0-9]*$')

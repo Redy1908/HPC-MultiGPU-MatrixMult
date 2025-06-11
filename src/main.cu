@@ -10,7 +10,6 @@ int main(int argc, char *argv[]) {
   int dims[2], period[2], coord[2], rank, size;
   double start_time, end_time;
   int tile_width, grid_width, grid_height;
-  int threads_per_block, num_blocks;
   int gpu_count;
   MPI_Comm grid_comm;
 
@@ -19,18 +18,33 @@ int main(int argc, char *argv[]) {
   MPI_Comm_size(MPI_COMM_WORLD, &size);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-  if (argc < 2) {
+  if (argc < 3) {
     if (rank == 0) {
-      fprintf(stderr, "Usage: %s <matrix_size>\n", argv[0]);
+      fprintf(stderr, "Usage: %s <matrix_size> <num_tile_widths> <tile_width1> <tile_width2> ...\n", argv[0]);
     }
     MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
   }
   N = atoi(argv[1]);
-  if (N <= 0) {
+  int num_tile_widths = atoi(argv[2]);
+
+  if (argc < 3 + num_tile_widths) {
     if (rank == 0) {
-      fprintf(stderr, "Error: Invalid matrix size N = %d. Must be > 0.\n", N);
+      fprintf(stderr, "Error: Not enough tile_width arguments provided. Expected %d, got %d.\n", num_tile_widths, argc - 3);
     }
     MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+  }
+
+  int *tile_widths_array = (int *)malloc(num_tile_widths * sizeof(int));
+
+  for (int k = 0; k < num_tile_widths; ++k) {
+    tile_widths_array[k] = atoi(argv[3 + k]);
+    if (tile_widths_array[k] <= 0) {
+      if (rank == 0) {
+        fprintf(stderr, "Error: Invalid tile_width value %s at index %d.\n", argv[3 + k], k);
+      }
+      free(tile_widths_array);
+      MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+    }
   }
 
   double s = sqrt(size);
@@ -156,9 +170,8 @@ int main(int argc, char *argv[]) {
   }
 
   // ==================================================
-  // TEST 0 - Iterative
+  // TEST Iterative
   // ==================================================
-
   if (rank == 0) {
     printf("\nRunning Test 0: Iterative on rank 0...\n");
 
@@ -168,220 +181,53 @@ int main(int argc, char *argv[]) {
     phpc_gemm_iterative(A, B, C, N);
     end_time = get_cur_time() - start_time;
 
-    fprintf(csv_file, "%d,%d,%d,%d,ITERATIVE,%f\n",
-            N, 1, 0, 0, end_time);
+    log_to_csv(csv_file, N, 1, 0, 0, "ITERATIVE", end_time);
   }
 
   // ==================================================
-  // TEST 1 - only 1 thread
+  // TESTS with increasing tile widths
   // ==================================================
-  MPI_Barrier(MPI_COMM_WORLD);
-  tile_width = 1;
-  if (rank == 0) printf("\nRunning Test 1: tile_width = %d...\n", tile_width);
+  for (i = 0; i < num_tile_widths; i++) {
+    MPI_Barrier(MPI_COMM_WORLD);
+    tile_width = tile_widths_array[i];
 
-  grid_width = 1;
-  grid_height = 1;
+    if (rank == 0) printf("\nRunning Test %d: tile_width = %d...\n", i + 1, tile_width);
 
-  memset(C, 0, N * N * sizeof(double));
+    // If tile_width is 1 we are testing with only one thread (1x1 grid with one 1x1 block) otherwise we are
+    // using the optimal grid size based on tile_width.
+    grid_width = (tile_width == 1) ? 1 : (unsigned int)ceil((double)local_N_gpu / tile_width);
+    grid_height = (tile_width == 1) ? 1 : (unsigned int)ceil((double)local_N / tile_width);
 
-  start_time = get_cur_time();
-  if (phpc_gemm_summa_cuda(grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, tile_width) != 0) {
-    fprintf(stderr, "Error in phpc_gemm_summa_cuda with tile_width = %d\n", tile_width);
-  }
-  end_time = get_cur_time() - start_time;
+    // ==================================================
+    // Test SUMMA CUDA with the current tile width and grid size
+    // ==================================================
+    start_time = get_cur_time();
+    if (phpc_gemm_summa_cuda(grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, tile_width) != 0) {
+      fprintf(stderr, "Error in phpc_gemm_summa_cuda with tile_width = %d\n", tile_width);
+    }
+    end_time = get_cur_time() - start_time;
 
-  if (rank == 0 && csv_file != NULL) {
-    threads_per_block = tile_width * tile_width;
-    num_blocks = grid_width * grid_height;
-    fprintf(csv_file, "%d,%d,%d,%d,SUMMA_CUDA,%f\n",
-            N, size, num_blocks, threads_per_block, end_time);
-  }
+    log_to_csv(csv_file, N, size, grid_width * grid_height, tile_width * tile_width, "SUMMA_CUDA", end_time);
 
-  memset(C, 0, N * N * sizeof(double));
+    // ==================================================
+    // Test SUMMA CUBLAS with the current tile width and grid size
+    // ==================================================
+    MPI_Barrier(MPI_COMM_WORLD);
+    memset(C, 0, N * N * sizeof(double));
 
-  start_time = get_cur_time();
-  if (phpc_gemm_summa_cublas(grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, tile_width) != 0) {
-    fprintf(stderr, "Error in phpc_gemm_summa_cublas with tile_width = %d\n", tile_width);
-  }
-  end_time = get_cur_time() - start_time;
+    start_time = get_cur_time();
+    if (phpc_gemm_summa_cublas(grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, tile_width) != 0) {
+      fprintf(stderr, "Error in phpc_gemm_summa_cublas with tile_width = %d\n", tile_width);
+    }
+    end_time = get_cur_time() - start_time;
 
-  if (rank == 0 && csv_file != NULL) {
-    threads_per_block = tile_width * tile_width;
-    num_blocks = grid_width * grid_height;
-    fprintf(csv_file, "%d,%d,%d,%d,SUMMA_CUBLAS,%f\n",
-            N, size, num_blocks, threads_per_block, end_time);
-  }
-
-  // ==================================================
-  // TEST 2
-  // ==================================================
-  MPI_Barrier(MPI_COMM_WORLD);
-  tile_width = 4;
-  if (rank == 0) printf("\nRunning Test 2: tile_width = %d...\n", tile_width);
-
-  grid_width = (unsigned int)ceil((double)local_N_gpu / tile_width);
-  grid_height = (unsigned int)ceil((double)local_N / tile_width);
-
-  memset(C, 0, N * N * sizeof(double));
-
-  start_time = get_cur_time();
-  if (phpc_gemm_summa_cuda(grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, tile_width) != 0) {
-    fprintf(stderr, "Error in phpc_gemm_summa_cuda with tile_width = %d\n", tile_width);
-  }
-  end_time = get_cur_time() - start_time;
-
-  if (rank == 0 && csv_file != NULL) {
-    threads_per_block = tile_width * tile_width;
-    num_blocks = grid_width * grid_height;
-    fprintf(csv_file, "%d,%d,%d,%d,SUMMA_CUDA,%f\n",
-            N, size, num_blocks, threads_per_block, end_time);
-  }
-
-  memset(C, 0, N * N * sizeof(double));
-
-  start_time = get_cur_time();
-  if (phpc_gemm_summa_cublas(grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, tile_width) != 0) {
-    fprintf(stderr, "Error in phpc_gemm_summa_cublas with tile_width = %d\n", tile_width);
-  }
-  end_time = get_cur_time() - start_time;
-
-  if (rank == 0 && csv_file != NULL) {
-    threads_per_block = tile_width * tile_width;
-    num_blocks = grid_width * grid_height;
-    fprintf(csv_file, "%d,%d,%d,%d,SUMMA_CUBLAS,%f\n",
-            N, size, num_blocks, threads_per_block, end_time);
-  }
-
-  // ==================================================
-  // TEST 3
-  // ==================================================
-  MPI_Barrier(MPI_COMM_WORLD);
-  tile_width = 8;
-  if (rank == 0) printf("\nRunning Test 3: tile_width = %d...\n", tile_width);
-
-  grid_width = (unsigned int)ceil((double)local_N_gpu / tile_width);
-  grid_height = (unsigned int)ceil((double)local_N / tile_width);
-
-  memset(C, 0, N * N * sizeof(double));
-
-  start_time = get_cur_time();
-  if (phpc_gemm_summa_cuda(grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, tile_width) != 0) {
-    fprintf(stderr, "Error in phpc_gemm_summa_cuda with tile_width = %d\n", tile_width);
-  }
-  end_time = get_cur_time() - start_time;
-
-  if (rank == 0 && csv_file != NULL) {
-    threads_per_block = tile_width * tile_width;
-    num_blocks = grid_width * grid_height;
-    fprintf(csv_file, "%d,%d,%d,%d,SUMMA_CUDA,%f\n",
-            N, size, num_blocks, threads_per_block, end_time);
-  }
-
-  memset(C, 0, N * N * sizeof(double));
-
-  start_time = get_cur_time();
-  if (phpc_gemm_summa_cublas(grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, tile_width) != 0) {
-    fprintf(stderr, "Error in phpc_gemm_summa_cublas with tile_width = %d\n", tile_width);
-  }
-  end_time = get_cur_time() - start_time;
-
-  if (rank == 0 && csv_file != NULL) {
-    threads_per_block = tile_width * tile_width;
-    num_blocks = grid_width * grid_height;
-    fprintf(csv_file, "%d,%d,%d,%d,SUMMA_CUBLAS,%f\n",
-            N, size, num_blocks, threads_per_block, end_time);
-  }
-
-  // ==================================================
-  // TEST 4
-  // ==================================================
-  MPI_Barrier(MPI_COMM_WORLD);
-
-  tile_width = 16;
-  if (rank == 0) printf("\nRunning Test 4: tile_width = %d...\n", tile_width);
-
-  grid_width = (unsigned int)ceil((double)local_N_gpu / tile_width);
-  grid_height = (unsigned int)ceil((double)local_N / tile_width);
-
-  memset(C, 0, N * N * sizeof(double));
-
-  start_time = get_cur_time();
-  if (phpc_gemm_summa_cuda(grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, tile_width) != 0) {
-    fprintf(stderr, "Error in phpc_gemm_summa_cuda with tile_width = %d\n", tile_width);
-  }
-  end_time = get_cur_time() - start_time;
-
-  if (rank == 0 && csv_file != NULL) {
-    threads_per_block = tile_width * tile_width;
-    num_blocks = grid_width * grid_height;
-    fprintf(csv_file, "%d,%d,%d,%d,SUMMA_CUDA,%f\n",
-            N, size, num_blocks, threads_per_block, end_time);
-  }
-
-  memset(C, 0, N * N * sizeof(double));
-
-  start_time = get_cur_time();
-  if (phpc_gemm_summa_cublas(grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, tile_width) != 0) {
-    fprintf(stderr, "Error in phpc_gemm_summa_cublas with tile_width = %d\n", tile_width);
-  }
-  end_time = get_cur_time() - start_time;
-
-  if (rank == 0 && csv_file != NULL) {
-    threads_per_block = tile_width * tile_width;
-    num_blocks = grid_width * grid_height;
-    fprintf(csv_file, "%d,%d,%d,%d,SUMMA_CUBLAS,%f\n",
-            N, size, num_blocks, threads_per_block, end_time);
-  }
-
-  // ==================================================
-  // TEST 5
-  // ==================================================
-  MPI_Barrier(MPI_COMM_WORLD);
-
-  tile_width = 32;
-  if (rank == 0) printf("\nRunning Test 5: tile_width = %d...\n", tile_width);
-
-  grid_width = (unsigned int)ceil((double)local_N_gpu / tile_width);
-  grid_height = (unsigned int)ceil((double)local_N / tile_width);
-
-  memset(C, 0, N * N * sizeof(double));
-
-  start_time = get_cur_time();
-  if (phpc_gemm_summa_cuda(grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, tile_width) != 0) {
-    fprintf(stderr, "Error in phpc_gemm_summa_cuda with tile_width = %d\n", tile_width);
-  }
-  end_time = get_cur_time() - start_time;
-
-  if (rank == 0 && csv_file != NULL) {
-    threads_per_block = tile_width * tile_width;
-    num_blocks = grid_width * grid_height;
-    fprintf(csv_file, "%d,%d,%d,%d,SUMMA_CUDA,%f\n",
-            N, size, num_blocks, threads_per_block, end_time);
-  }
-
-  memset(C, 0, N * N * sizeof(double));
-
-  start_time = get_cur_time();
-  if (phpc_gemm_summa_cublas(grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, tile_width) != 0) {
-    fprintf(stderr, "Error in phpc_gemm_summa_cublas with tile_width = %d\n", tile_width);
-  }
-  end_time = get_cur_time() - start_time;
-
-  if (rank == 0 && csv_file != NULL) {
-    threads_per_block = tile_width * tile_width;
-    num_blocks = grid_width * grid_height;
-    fprintf(csv_file, "%d,%d,%d,%d,SUMMA_CUBLAS,%f\n",
-            N, size, num_blocks, threads_per_block, end_time);
+    log_to_csv(csv_file, N, size, grid_width * grid_height, tile_width * tile_width, "SUMMA_CUBLAS", end_time);
   }
 
   MPI_Barrier(MPI_COMM_WORLD);
-
-  if (rank == 0 && csv_file != NULL) {
-    fclose(csv_file);
-    printf("\nCSV file written: %s\n", filename);
-  }
 
   if (rank == 0) {
+    fclose(csv_file);
     printf("\nAll tests completed.\n");
   }
 
