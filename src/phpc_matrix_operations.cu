@@ -98,9 +98,6 @@ int phpc_gemm_cublas(const double *a, int lda, const double *b, int ldb, double 
 
   int return_code = 0;
   int dev_n = n / gpu_count;
-  dim3 grid_size(grid_width, grid_height, 1);
-  dim3 block_size(block_width, block_width, 1);
-  int shared_memory_size = 2 * block_width * block_width * sizeof(double);
 
   double **dev_buffers_a = (double **)malloc(gpu_count * sizeof(double *));
   double **dev_buffers_b = (double **)malloc(gpu_count * sizeof(double *));
