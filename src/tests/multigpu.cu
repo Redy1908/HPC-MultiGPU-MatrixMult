@@ -1,5 +1,7 @@
 #include <assert.h>
 #include <mpi.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #include "../phpc_matrix_operations.cuh"
 
