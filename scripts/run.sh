@@ -42,7 +42,11 @@ for csv_file_path in "$CSV_FILES_DIR"/*.csv; do
     echo "Processing CSV file: $csv_filename"
 
     row_num=0
-    tail -n +2 "$csv_file_path" | while IFS=, read -r matrix_width processes GPU_number tile_width grid_width grid_height; do
+      while IFS=, read -r matrix_width processes GPU_number tile_width grid_width grid_height; do
+        if [[ "$matrix_width" == "matrix_width" && $row_num -eq 0 ]]; then # Adjust header check if necessary
+            row_num=$((row_num + 1))
+            continue
+        fi
         row_num=$((row_num + 1))
 
         MSIZE=$(echo "$matrix_width" | xargs)
@@ -74,17 +78,17 @@ srun nsys profile \
     --output=profiling/profile_${JOB_NAME_SUFFIX}_procid\$SLURM_PROCID \
     bin/main.out ${MSIZE} ${TILE_WIDTH} ${GRID_WIDTH} ${GRID_HEIGHT} ${csv_filename_no_ext}
 EOF
-            JOB_OUTPUT=$(sbatch ${SLURM_SCRIPT_NAME_TMP})
-            JOB_ID=$(echo "$JOB_OUTPUT" | grep -o '[0-9]*$')
-            if [ -n "$JOB_ID" ]; then
-                echo "    Submitting SLURM script: ${SLURM_SCRIPT_NAME_TMP} with Job ID: ${JOB_ID}"
-                JOBS_IDS+=("$JOB_ID")
-            else
-                echo "    Error submitting SLURM script: ${SLURM_SCRIPT_NAME_TMP}. sbatch output: $JOB_OUTPUT"
-            fi
+        JOB_OUTPUT=$(sbatch ${SLURM_SCRIPT_NAME_TMP})
+        JOB_ID=$(echo "$JOB_OUTPUT" | grep -o '[0-9]*$')
+        if [ -n "$JOB_ID" ]; then
+            echo "    Submitting SLURM script: ${SLURM_SCRIPT_NAME_TMP} with Job ID: ${JOB_ID}"
+            JOBS_IDS+=("$JOB_ID")
+        else
+            echo "    Error submitting SLURM script: ${SLURM_SCRIPT_NAME_TMP}. sbatch output: $JOB_OUTPUT"
+        fi
             
-            rm "${SLURM_SCRIPT_NAME_TMP}"
-        done
+        rm "${SLURM_SCRIPT_NAME_TMP}"
+    done < <(tail -n +2 "$csv_file_path")
 done
 
 echo " "
