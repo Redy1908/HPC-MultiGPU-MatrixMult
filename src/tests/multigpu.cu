@@ -1,5 +1,5 @@
 #include <assert.h>
-#include <mpi/mpi.h>
+#include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
 
