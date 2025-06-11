@@ -28,7 +28,7 @@ echo " "
 
 JOBS_IDS=()
 
-echo "Generating and submitting SLURM jobs based on CSV files in the 'tests' directory..."
+echo "Submitting SLURM jobs..."
 CSV_FILES_DIR="tests"
 
 for csv_file_path in "$CSV_FILES_DIR"/*.csv; do
@@ -54,7 +54,7 @@ for csv_file_path in "$CSV_FILES_DIR"/*.csv; do
             GRID_WIDTH=$(echo "$grid_width" | xargs)
             GRID_HEIGHT=$(echo "$grid_height" | xargs)
             
-            JOB_NAME_SUFFIX="${csv_filename_no_ext}_N${MSIZE}_T${NTASK}_G${NGPU}_TW${TILE_WIDTH}"
+            JOB_NAME_SUFFIX="${csv_filename_no_ext}_N${MSIZE}_T${NTASK}_G${NGPU}_TW${TILE_WIDTH}_GW${GRID_WIDTH}_GH${GRID_HEIGHT}"
             SLURM_SCRIPT_NAME_TMP="job_${JOB_NAME_SUFFIX}.slurm"
 
             cat > "${SLURM_SCRIPT_NAME_TMP}" << EOF
@@ -79,10 +79,10 @@ EOF
             JOB_OUTPUT=$(sbatch ${SLURM_SCRIPT_NAME_TMP})
             JOB_ID=$(echo "$JOB_OUTPUT" | grep -o '[0-9]*$')
             if [ -n "$JOB_ID" ]; then
-                echo "    Submitting SLURM script: ${SLURM_SCRIPT_NAME_TMP} with Job ID: ${JOB_ID}"
+                echo "Submitting SLURM script: ${SLURM_SCRIPT_NAME_TMP} with Job ID: ${JOB_ID}"
                 JOBS_IDS+=("$JOB_ID")
             else
-                echo "    Error submitting SLURM script: ${SLURM_SCRIPT_NAME_TMP}. sbatch output: $JOB_OUTPUT"
+                echo "Error submitting SLURM script: ${SLURM_SCRIPT_NAME_TMP}. sbatch output: $JOB_OUTPUT"
             fi
                 
             rm "${SLURM_SCRIPT_NAME_TMP}"
