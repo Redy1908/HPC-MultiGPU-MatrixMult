@@ -7,6 +7,8 @@
 #include "phpc_matrix_operations.cuh"
 #include "utils.cuh"
 
+typedef int (*gemm_t)(const double *a, int lda, const double *b, int ldb, double *c, int ldc, int m, int k, int n, int gpu_count, int grid_width, int grid_height, int block_width);
+
 __global__ void gemm_kernel(double *A, double *B, double *C, int M, int N, int K) {
   extern __shared__ double shared_mem[];
 
@@ -63,6 +65,127 @@ __global__ void gemm_kernel(double *A, double *B, double *C, int M, int N, int K
     if ((global_row_C < M) && (global_col_C < N))
       C[global_row_C * N + global_col_C] += c_value;
   }
+}
+
+int phpc_gemm_cublas(const double *a, int lda, const double *b, int ldb, double *c, int ldc, int m, int k, int n, int gpu_count, int grid_width, int grid_height, int block_width) {
+  int device_count;
+  cudaGetDeviceCount(&device_count);
+
+  if (gpu_count <= 0 || gpu_count > device_count || grid_width <= 0 || grid_height <= 0 || block_width * block_width > 1024 || n % gpu_count != 0)
+    return 1;
+
+  /**
+   * Matrix A: each gpu copies the entire matrix
+   *
+   * Matrix B: each gpu has a "column"
+   *  ________________________
+   * |       |       |       |
+   * |       |       |       |
+   * | GPU 0 |  ...  | GPU N |
+   * |       |       |       |
+   * |       |       |       |
+   * -------------------------
+   *
+   * Matrix C: each gpu has a resulting "column"
+   *  ________________________
+   * |       |       |       |
+   * |       |       |       |
+   * | GPU 0 |  ...  | GPU i |
+   * |       |       |       |
+   * |       |       |       |
+   * -------------------------
+   */
+
+  int return_code = 0;
+  int dev_n = n / gpu_count;
+  dim3 grid_size(grid_width, grid_height, 1);
+  dim3 block_size(block_width, block_width, 1);
+  int shared_memory_size = 2 * block_width * block_width * sizeof(double);
+
+  double **dev_buffers_a = (double **)malloc(gpu_count * sizeof(double *));
+  double **dev_buffers_b = (double **)malloc(gpu_count * sizeof(double *));
+  double **dev_buffers_c = (double **)malloc(gpu_count * sizeof(double *));
+  cudaStream_t *streams = (cudaStream_t *)malloc(gpu_count * sizeof(cudaStream_t));
+  cublasHandle_t *handles = (cublasHandle_t *)malloc(gpu_count * sizeof(cublasHandle_t));
+
+  if (dev_buffers_a == NULL || dev_buffers_b == NULL || dev_buffers_c == NULL || streams == NULL || handles == NULL) {
+    free(handles);
+    free(streams);
+    free(dev_buffers_c);
+    free(dev_buffers_b);
+    free(dev_buffers_a);
+    return 2;
+  }
+
+  int launched_kernels = 0;
+
+  for (int gpu = 0; gpu < gpu_count; gpu++) {
+    cudaSetDevice(gpu);
+    cublasCreate_v2(&(handles[gpu]));
+
+    cudaError_t status;
+
+    status = cudaStreamCreate(&(streams[gpu]));
+    if (status != cudaSuccess) {
+      return_code = 1;
+      break;
+    }
+    launched_kernels++;
+
+    status = cudaMallocAsync(&(dev_buffers_a[gpu]), m * k * sizeof(double), streams[gpu]);
+    if (status != cudaSuccess) {
+      return_code = 1;
+      break;
+    }
+
+    status = cudaMallocAsync(&(dev_buffers_b[gpu]), k * dev_n * sizeof(double), streams[gpu]);
+    if (status != cudaSuccess) {
+      cudaFreeAsync(dev_buffers_a[gpu], streams[gpu]);
+      return_code = 1;
+      break;
+    }
+
+    status = cudaMallocAsync(&(dev_buffers_c[gpu]), m * dev_n * sizeof(double), streams[gpu]);
+    if (status != cudaSuccess) {
+      cudaFreeAsync(dev_buffers_b[gpu], streams[gpu]);
+      cudaFreeAsync(dev_buffers_a[gpu], streams[gpu]);
+      return_code = 1;
+      break;
+    }
+
+    /* copy from host to device */
+    cudaMemcpy2DAsync(dev_buffers_a[gpu], k * sizeof(double), a, lda * sizeof(double), k * sizeof(double), m, cudaMemcpyHostToDevice, streams[gpu]);
+    cudaMemcpy2DAsync(dev_buffers_b[gpu], dev_n * sizeof(double), b + dev_n * gpu, ldb * sizeof(double), dev_n * sizeof(double), k, cudaMemcpyHostToDevice, streams[gpu]);
+    cudaMemcpy2DAsync(dev_buffers_c[gpu], dev_n * sizeof(double), c + dev_n * gpu, ldc * sizeof(double), dev_n * sizeof(double), m, cudaMemcpyHostToDevice, streams[gpu]);
+
+    /* perform computation */
+    /* note: some subtle math magic to make it work since cublas expects column-major matrices https://stackoverflow.com/a/56064726/17731255 */
+    double alpha = 1, beta = 0;
+    cublasSetStream_v2(handles[gpu], streams[gpu]);
+    cublasDgemm_v2(handles[gpu], CUBLAS_OP_N, CUBLAS_OP_N, dev_n, m, k, &alpha, dev_buffers_b[gpu], n, dev_buffers_a[gpu], k, &beta, dev_buffers_c[gpu], n);
+
+    /* copy result from device to host */
+    cudaMemcpy2DAsync(c + dev_n * gpu, ldc * sizeof(double), dev_buffers_c[gpu], dev_n * sizeof(double), dev_n * sizeof(double), m, cudaMemcpyDeviceToHost, streams[gpu]);
+
+    cudaFreeAsync(dev_buffers_c[gpu], streams[gpu]);
+    cudaFreeAsync(dev_buffers_b[gpu], streams[gpu]);
+    cudaFreeAsync(dev_buffers_a[gpu], streams[gpu]);
+  }
+
+  for (int gpu = 0; gpu < launched_kernels; gpu++) {
+    cudaSetDevice(gpu);
+    cudaStreamSynchronize(streams[gpu]);
+    cudaStreamDestroy(streams[gpu]);
+    cublasDestroy_v2(handles[gpu]);
+  }
+
+  free(handles);
+  free(streams);
+  free(dev_buffers_c);
+  free(dev_buffers_b);
+  free(dev_buffers_a);
+
+  return return_code;
 }
 
 int phpc_gemm_cuda(const double *a, int lda, const double *b, int ldb, double *c, int ldc, int m, int k, int n, int gpu_count, int grid_width, int grid_height, int block_width) {
@@ -181,11 +304,18 @@ int phpc_gemm_cuda(const double *a, int lda, const double *b, int ldb, double *c
   return return_code;
 }
 
-int phpc_gemm_summa_cuda(MPI_Comm grid_comm, const double *A, const double *B, double *C, int N, int gpu_count, int grid_width, int grid_height, int block_width) {
-  if (grid_comm == NULL || A == NULL || B == NULL || C == NULL || N <= 0)
+int phpc_gemm_summa(gemm_t f, MPI_Comm grid_comm, const double *A, const double *B, double *C, int N, int gpu_count, int grid_width, int grid_height, int block_width) {
+  if (grid_comm == NULL)
     return 1;
 
   int return_code = 0;
+  if (A == NULL || B == NULL || C == NULL || N <= 0)
+    return_code = 1;
+
+  /* check if any of the processes has failed */
+  MPI_Allreduce(MPI_IN_PLACE, &return_code, 1, MPI_INT, MPI_MAX, grid_comm);
+  if (return_code != 0)
+    return return_code;
 
   /* get MPI properties */
   int rank, size, dims[2], periods[2], coords[2];
@@ -212,13 +342,13 @@ int phpc_gemm_summa_cuda(MPI_Comm grid_comm, const double *A, const double *B, d
   double *buffer_a = (double *)malloc(local_A_rows * panel_K_dim * sizeof(double));
   double *buffer_b = (double *)malloc(panel_K_dim * local_B_cols * sizeof(double));
 
-  if (buffer_a == NULL || buffer_b == NULL) {
-    free(buffer_b);
-    free(buffer_a);
-    MPI_Comm_free(&row_comm);
-    MPI_Comm_free(&col_comm);
-    return 3;
-  }
+  if (buffer_a == NULL || buffer_b == NULL)
+    return_code = 3;
+
+  /* check if any of the processes has failed */
+  MPI_Allreduce(MPI_IN_PLACE, &return_code, 1, MPI_INT, MPI_MAX, grid_comm);
+  if (return_code != 0)
+    goto cleanup; /* simple cleanup goto, no context weirdness, it's fine */
 
   /* create derived datatypes to exchange the blocks across the network */
   /* this is due the fact the blocks a process must handle are a portion than the actual dimension of the matrices */
@@ -231,7 +361,7 @@ int phpc_gemm_summa_cuda(MPI_Comm grid_comm, const double *A, const double *B, d
   MPI_Type_commit(&block_b_type);
   MPI_Type_commit(&block_c_type);
 
-  for (int k = 0; k < lcm; k++) {
+  for (int k = 0; k < lcm && return_code == 0; k++) {
     int sender_column = k % dims[1];
     int sender_row = k % dims[0];
 
@@ -260,24 +390,39 @@ int phpc_gemm_summa_cuda(MPI_Comm grid_comm, const double *A, const double *B, d
     }
 
     /* compute product of the blocks */
-    phpc_gemm_cuda(block_a, block_lda, block_b, block_ldb, offset_c, N, local_A_rows, panel_K_dim, local_B_cols, gpu_count, grid_width, grid_height, block_width);
+    int op_code = f(block_a, block_lda, block_b, block_ldb, offset_c, N, local_A_rows, panel_K_dim, local_B_cols, gpu_count, grid_width, grid_height, block_width);
+    MPI_Allreduce(&return_code, &op_code, 1, MPI_INT, MPI_MAX, grid_comm);
   }
 
-  /* gather matrices */
-  /* there's room for optimization by replacing bcasts with gathers but with matrices blocks it's a bit complex */
-  for (int i = 0; i < size; i++) {
-    int coords[2];
-    MPI_Cart_coords(grid_comm, i, 2, coords);
+  if (return_code == 0) {
+    /* gather matrices */
+    /* there's room for optimization by replacing bcasts with gathers but with matrices blocks it's a bit complex */
+    for (int i = 0; i < size; i++) {
+      int coords[2];
+      MPI_Cart_coords(grid_comm, i, 2, coords);
 
-    double *c_start = C + N * coords[0] * local_A_rows + coords[1] * local_B_cols;
-    MPI_Bcast(c_start, 1, block_c_type, i, grid_comm);
+      double *c_start = C + N * coords[0] * local_A_rows + coords[1] * local_B_cols;
+      MPI_Bcast(c_start, 1, block_c_type, i, grid_comm);
+    }
   }
 
   MPI_Type_free(&block_c_type);
   MPI_Type_free(&block_b_type);
   MPI_Type_free(&block_a_type);
+
+cleanup:
+  free(buffer_b);
+  free(buffer_a);
   MPI_Comm_free(&row_comm);
   MPI_Comm_free(&col_comm);
 
   return return_code;
+}
+
+int phpc_gemm_summa_cuda(MPI_Comm grid_comm, const double *A, const double *B, double *C, int N, int gpu_count, int grid_width, int grid_height, int block_width) {
+  return phpc_gemm_summa(phpc_gemm_cuda, grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, block_width);
+}
+
+int phpc_gemm_summa_cublas(MPI_Comm grid_comm, const double *A, const double *B, double *C, int N, int gpu_count, int grid_width, int grid_height, int block_width) {
+  return phpc_gemm_summa(phpc_gemm_cublas, grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, block_width);
 }
