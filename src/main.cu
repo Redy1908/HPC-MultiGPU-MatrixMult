@@ -169,7 +169,7 @@ int main(int argc, char *argv[]) {
     end_time = get_cur_time() - start_time;
 
     fprintf(csv_file, "%d,%d,%d,%d,ITERATIVE,%f\n",
-            N, size, 0, 0, end_time);
+            N, 1, 0, 0, end_time);
   }
 
   // ==================================================
