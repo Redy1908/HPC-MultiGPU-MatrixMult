@@ -128,14 +128,14 @@ int main(int argc, char *argv[]) {
   FILE *csv_file = NULL;
   char filename[256];
   if (rank == 0) {
-    snprintf(filename, sizeof(filename), "csv/performance_%s_N%d_T%d_G%d_TW%d_GW%d_GH%d.csv", test_name, N, size, gpu_count, tile_width, grid_width, grid_height);
+    snprintf(filename, sizeof(filename), "csv/%s_N%d_T%d_G%d_TW%d_GW%d_GH%d.csv", test_name, N, size, gpu_count, tile_width, grid_width, grid_height);
     csv_file = fopen(filename, "w");
     if (csv_file == NULL) {
       fprintf(stderr, "Error: Could not create CSV file %s\n", filename);
       MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
     }
 
-    fprintf(csv_file, "N,n_proc,n_block,n_thread,method,time\n");
+    fprintf(csv_file, "matrix_size,n_proc,n_gpu,n_block,n_thread,method,time\n");
   }
 
   srand(0);
@@ -159,7 +159,7 @@ int main(int argc, char *argv[]) {
     phpc_gemm_iterative(A, B, C, N);
     end_time = get_cur_time() - start_time;
 
-    log_to_csv(csv_file, N, 1, 0, 0, "ITERATIVE", end_time);
+    log_to_csv(csv_file, N, 1, gpu_count, 0, 0, "ITERATIVE", end_time);
   }
 
   // ==================================================
@@ -174,7 +174,7 @@ int main(int argc, char *argv[]) {
   }
   end_time = get_cur_time() - start_time;
 
-  log_to_csv(csv_file, N, size, grid_width * grid_height, tile_width * tile_width, "SUMMA_CUDA", end_time);
+  log_to_csv(csv_file, N, size, gpu_count, grid_width * grid_height, tile_width * tile_width, "SUMMA_CUDA", end_time);
 
   // ==================================================
   // Test SUMMA CUBLAS with the current tile width and grid size
@@ -188,7 +188,7 @@ int main(int argc, char *argv[]) {
   }
   end_time = get_cur_time() - start_time;
 
-  log_to_csv(csv_file, N, size, grid_width * grid_height, tile_width * tile_width, "SUMMA_CUBLAS", end_time);
+  log_to_csv(csv_file, N, size, gpu_count, grid_width * grid_height, tile_width * tile_width, "SUMMA_CUBLAS", end_time);
 
   MPI_Barrier(MPI_COMM_WORLD);
 

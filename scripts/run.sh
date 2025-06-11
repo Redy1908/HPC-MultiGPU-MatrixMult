@@ -45,11 +45,11 @@ for csv_file_path in "$CSV_FILES_DIR"/*.csv; do
         while IFS= read -r line || [[ -n "$line" ]]; do
             [[ -z "$line" ]] && continue
             
-            IFS=',' read -r matrix_width processes GPU_number tile_width grid_width grid_height <<< "$line"
+            IFS=',' read -r matrix_size n_proc n_gpu tile_width grid_width grid_height <<< "$line"
 
-            MSIZE=$(echo "$matrix_width" | xargs)
-            NTASK=$(echo "$processes" | xargs)
-            NGPU=$(echo "$GPU_number" | xargs)
+            MSIZE=$(echo "$matrix_size" | xargs)
+            NTASK=$(echo "$n_proc" | xargs)
+            NGPU=$(echo "$n_gpu" | xargs)
             TILE_WIDTH=$(echo "$tile_width" | xargs)
             GRID_WIDTH=$(echo "$grid_width" | xargs)
             GRID_HEIGHT=$(echo "$grid_height" | xargs)
