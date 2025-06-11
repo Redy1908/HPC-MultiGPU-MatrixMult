@@ -1,5 +1,5 @@
 #include <assert.h>
-#include <mpi.h>
+#include <mpi/mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -36,7 +36,7 @@ int main(int argc, char **argv) {
     b[i] = rank + 1;
   }
 
-  int status = phpc_gemm_summa_cublas(grid_comm, a, b, c, width, gpus, 1, 1, 1024);
+  int status = phpc_gemm_summa_cublas(grid_comm, a, b, c, width, gpus, 1, 1, 32);
   assert(status == 0);
 
   if (rank == 0) {

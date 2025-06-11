@@ -68,10 +68,7 @@ __global__ void gemm_kernel(double *A, double *B, double *C, int M, int N, int K
 }
 
 int phpc_gemm_cublas(const double *a, int lda, const double *b, int ldb, double *c, int ldc, int m, int k, int n, int gpu_count, int grid_width, int grid_height, int block_width) {
-  int device_count;
-  cudaGetDeviceCount(&device_count);
-
-  if (gpu_count <= 0 || gpu_count > device_count || grid_width <= 0 || grid_height <= 0 || block_width * block_width > 1024 || n % gpu_count != 0)
+  if (gpu_count <= 0 || grid_width <= 0 || grid_height <= 0 || n % gpu_count != 0)
     return 1;
 
   /**
@@ -157,7 +154,7 @@ int phpc_gemm_cublas(const double *a, int lda, const double *b, int ldb, double 
 
     /* perform computation */
     /* note: some subtle math magic to make it work since cublas expects column-major matrices https://stackoverflow.com/a/56064726/17731255 */
-    double alpha = 1, beta = 0;
+    double alpha = 1, beta = 1;
     cublasSetStream_v2(handles[gpu], streams[gpu]);
     cublasDgemm_v2(handles[gpu], CUBLAS_OP_N, CUBLAS_OP_N, dev_n, m, k, &alpha, dev_buffers_b[gpu], n, dev_buffers_a[gpu], k, &beta, dev_buffers_c[gpu], n);
 
