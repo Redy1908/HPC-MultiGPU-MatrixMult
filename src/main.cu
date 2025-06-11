@@ -179,8 +179,8 @@ int main(int argc, char *argv[]) {
   tile_width = 1;
   if (rank == 0) printf("\nRunning Test 1: tile_width = %d...\n", tile_width);
 
-  grid_width = (unsigned int)ceil((double)local_N_gpu / tile_width);
-  grid_height = (unsigned int)ceil((double)local_N / tile_width);
+  grid_width = 1;
+  grid_height = 1;
 
   memset(C, 0, N * N * sizeof(double));
 
