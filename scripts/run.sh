@@ -51,7 +51,7 @@ srun nsys profile \
     --force-overwrite true \
     --gpu-metrics-device=all \
     --output=profiling/profile_N${MSIZE}_${NTASK}tasks_${NGPU}gpus_procid\$SLURM_PROCID \
-    bin/main_matmul.out ${MSIZE} "${TILE_WIDTH[*]}" "${TILE_WIDTH[*]}"
+    bin/main_matmul.out ${MSIZE} ${#TILE_WIDTH[@]} ${TILE_WIDTH[*]}
 EOF
             JOB_OUTPUT=$(sbatch temp_job_N${MSIZE}_${NTASK}tasks_${NGPU}gpus.slurm)
             JOB_ID=$(echo "$JOB_OUTPUT" | grep -o '[0-9]*$')
