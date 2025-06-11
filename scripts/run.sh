@@ -26,60 +26,80 @@ fi
 echo "Compilation successful."
 echo " "
 
-TASK_COUNTS=(1 4 16)
-GPU_COUNTS=(1 2 4)
-MATRIX_SIZES=(256)
-
-# ensure 1 is always present since it is used for the calculation of baseline
-TILE_WIDTH=(1 4 8 16 32)
-
-# Array to hold job IDs used for crating job dependencies for the analysis job
 JOBS_IDS=()
 
-echo "Starting submission of SLURM jobs..."
-for NTASK in "${TASK_COUNTS[@]}"; do
-    for NGPU in "${GPU_COUNTS[@]}"; do
-        for MSIZE in "${MATRIX_SIZES[@]}"; do
+echo "Submitting SLURM jobs..."
+CSV_FILES_DIR="tests"
 
-            SLURM_SCRIPT="job_N${MSIZE}_${NTASK}tasks_${NGPU}gpus.slurm"
+for csv_file_path in "$CSV_FILES_DIR"/*.csv; do
+    if [ ! -f "$csv_file_path" ]; then
+        echo "Warning: No CSV files found in $CSV_FILES_DIR, or $csv_file_path is not a file."
+        continue
+    fi
 
-            cat > ${SLURM_SCRIPT} << EOF
+    csv_filename=$(basename "$csv_file_path")
+    csv_filename_no_ext="${csv_filename%.*}"
+
+    {
+        read header
+        while IFS= read -r line || [[ -n "$line" ]]; do
+            [[ -z "$line" ]] && continue
+            
+            IFS=',' read -r matrix_size n_proc n_gpu tile_width grid_width grid_height <<< "$line"
+
+            MSIZE=$(echo "$matrix_size" | xargs)
+            NTASK=$(echo "$n_proc" | xargs)
+            NGPU=$(echo "$n_gpu" | xargs)
+            TILE_WIDTH=$(echo "$tile_width" | xargs)
+            GRID_WIDTH=$(echo "$grid_width" | xargs)
+            GRID_HEIGHT=$(echo "$grid_height" | xargs)
+            
+            JOB_NAME_SUFFIX="${csv_filename_no_ext}_N${MSIZE}_T${NTASK}_G${NGPU}_TW${TILE_WIDTH}_GW${GRID_WIDTH}_GH${GRID_HEIGHT}"
+            SLURM_SCRIPT_NAME_TMP="job_${JOB_NAME_SUFFIX}.slurm"
+
+            cat > "${SLURM_SCRIPT_NAME_TMP}" << EOF
 #!/bin/bash
 #SBATCH -p gpus
 #SBATCH --ntasks=${NTASK}
-#SBATCH --ntasks-per-node=1
+#SBATCH --ntasks-per-node=1 
 #SBATCH --gpus-per-task=${NGPU}
 #SBATCH --cpus-per-task=1
 #SBATCH --mem-per-cpu="5G"
 #SBATCH --time=00:20:00
-#SBATCH --output=logs/output_N${MSIZE}_${NTASK}tasks_${NGPU}gpus.log
-#SBATCH --error=logs/error_N${MSIZE}_${NTASK}tasks_${NGPU}gpus.log
+#SBATCH --output=logs/output_${JOB_NAME_SUFFIX}.log
+#SBATCH --error=logs/error_${JOB_NAME_SUFFIX}.log
 #SBATCH --job-name=mat_mul
 
 srun nsys profile \
     --force-overwrite true \
     --gpu-metrics-device=all \
-    --output=profiling/profile_N${MSIZE}_${NTASK}tasks_${NGPU}gpus_procid\$SLURM_PROCID \
-    bin/main.out ${MSIZE} ${#TILE_WIDTH[@]} ${TILE_WIDTH[*]}
+    --output=profiling/profile_${JOB_NAME_SUFFIX}_procId:\$SLURM_PROCID \
+    bin/main.out ${MSIZE} ${TILE_WIDTH} ${GRID_WIDTH} ${GRID_HEIGHT} ${csv_filename_no_ext}
 EOF
-            JOB_OUTPUT=$(sbatch ${SLURM_SCRIPT})
+            JOB_OUTPUT=$(sbatch ${SLURM_SCRIPT_NAME_TMP})
             JOB_ID=$(echo "$JOB_OUTPUT" | grep -o '[0-9]*$')
-            echo "Submitting SLURM script: ${SLURM_SCRIPT} with Job ID: ${JOB_ID}"
-
-            JOBS_IDS+=("$JOB_ID")
-            
-            rm ${SLURM_SCRIPT}
-        done
-    done
+            if [ -n "$JOB_ID" ]; then
+                echo "Submitting SLURM script: ${SLURM_SCRIPT_NAME_TMP} with Job ID: ${JOB_ID}"
+                JOBS_IDS+=("$JOB_ID")
+            else
+                echo "Error submitting SLURM script: ${SLURM_SCRIPT_NAME_TMP}. sbatch output: $JOB_OUTPUT"
+            fi
+                
+            rm "${SLURM_SCRIPT_NAME_TMP}"
+        done 
+    } < "$csv_file_path"
 done
 
 echo " "
-echo "All SLURM jobs submitted."
+if [ ${#JOBS_IDS[@]} -eq 0 ]; then
+    echo "No SLURM jobs were submitted."
+    echo "Skipping plot job submission."
+else
+    echo "All SLURM jobs submitted."
 
-# Create a job dependency string with all job IDs the analysis job waits for all jobs to create their output (csv files)
-DEPENDENCY_STRING=$(IFS=:; echo "${JOBS_IDS[*]}")
+    DEPENDENCY_STRING=$(IFS=:; echo "${JOBS_IDS[*]}")
 
-cat > plot_job.slurm << EOF
+    cat > plot_job.slurm << EOF
 #!/bin/bash
 #SBATCH -p sequential
 #SBATCH --ntasks=1
@@ -97,12 +117,17 @@ conda activate base
 python3 scripts/plots.py
 EOF
 
-echo " "
-echo "Plot job depending on all previous jobs..."
+    echo " "
+    echo "Plot job depending on all previous jobs..."
 
-JOB_OUTPUT=$(sbatch plot_job.slurm)
-JOB_ID=$(echo "$JOB_OUTPUT" | grep -o '[0-9]*$')
-echo "Submitting SLURM script: plot_job.slurm with Job ID: ${JOB_ID}"
-echo " "
+    JOB_OUTPUT_PLOT=$(sbatch plot_job.slurm)
+    JOB_ID_PLOT=$(echo "$JOB_OUTPUT_PLOT" | grep -o '[0-9]*$')
+    if [ -n "$JOB_ID_PLOT" ]; then
+        echo "Submitting SLURM script: plot_job.slurm with Job ID: ${JOB_ID_PLOT}"
+    else
+        echo "Error submitting plot_job.slurm. sbatch output: $JOB_OUTPUT_PLOT"
+    fi
+    echo " "
 
-rm plot_job.slurm
+    rm plot_job.slurm
+fi

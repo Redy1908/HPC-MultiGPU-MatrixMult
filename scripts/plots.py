@@ -2,55 +2,33 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
-import re
 import os
+import glob
 from collections import defaultdict
 
 def load_csv_files():
     csv_dir = Path('csv')
-    
-    # Pattern from main.cu: csv/performanceN%d_%dtasks_%dgpus.csv
-    pattern = 'performanceN*_*tasks_*gpus.csv'
-    csv_files = list(csv_dir.glob(pattern))
-    
-    if not csv_files:
-        print("No CSV files found matching pattern!")
-        return {}
-    
-    dfs = {}
-    
-    for csv_file in csv_files:
-        match = re.match(r'performanceN(\d+)_(\d+)tasks_(\d+)gpus\.csv', csv_file.name)
-        if match:
-            matrix_size, n_tasks, n_gpus = map(int, match.groups())
-            key = f"N{matrix_size}_T{n_tasks}_G{n_gpus}"
-            
-            try:
-                df = pd.read_csv(csv_file)
-                df['matrix_size'] = matrix_size
-                df['n_tasks'] = n_tasks
-                df['n_gpus'] = n_gpus
-                dfs[key] = df
-                print(f"Loaded {csv_file.name}: {len(df)} rows")
+    csv_files = glob.glob(os.path.join(csv_dir, "*.csv"))
 
-            except Exception as e:
-                print(f"Error loading {csv_file.name}: {e}")
+    dataframes = []
+
+    for file in csv_files:
+        df = pd.read_csv(file)
+        dataframes.append(df)
     
-    return dfs
+    return dataframes
 
-
-# Generazione grafici e metriche
-
-def generate_all_analysis(dfs):
+def generate_all_analysis(df_list):
     os.makedirs("plots", exist_ok=True)
     grouped_by_N = defaultdict(list)
-    for key, df in dfs.items():
+    
+    for df in df_list:
         matrix_size = df['matrix_size'].iloc[0]
-        grouped_by_N[matrix_size].append((key, df))
+        grouped_by_N[matrix_size].append(df)
 
     for N, df_list in grouped_by_N.items():
         all_data = []
-        for key, df in df_list:
+        for df in df_list:
             for _, row in df.iterrows():
                 all_data.append({
                     'n_block': row['n_block'],
@@ -58,10 +36,9 @@ def generate_all_analysis(dfs):
                     'total_threads': row['n_block'] * row['n_thread'],
                     'time': row['time'],
                     'method': row['method'],
-                    'key': key,
                     'matrix_size': row['matrix_size'],
-                    'n_tasks': row['n_tasks'],
-                    'n_gpus': row['n_gpus'],
+                    'n_proc': row['n_proc'],
+                    'n_gpu': row['n_gpu'],
                     'gflops': row.get('gflops', np.nan)
                 })
 
@@ -193,19 +170,6 @@ def main():
         return
     
     print(f"Successfully loaded {len(dfs)} CSV files")
-
-    """
-    Adesso dfs contiene i DataFrame caricati dai file CSV.
-
-    dfs = {
-    "N256_T1_G1": DataFrame con i dati del primo file,
-    "N256_T1_G2": DataFrame con i dati del secondo file,
-    "N256_T4_G1": DataFrame con i dati del terzo file,
-    ...,
-    }
-
-    Possiamo ora procedere a generare i grafici e a salvarli in plots/
-    """
 
     print("Generating full performance analysis...")
     generate_all_analysis(dfs)
