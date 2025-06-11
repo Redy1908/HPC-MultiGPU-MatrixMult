@@ -9,6 +9,16 @@
 
 typedef int (*gemm_t)(const double *a, int lda, const double *b, int ldb, double *c, int ldc, int m, int k, int n, int gpu_count, int grid_width, int grid_height, int block_width);
 
+void phpc_gemm_iterative(const double *A, const double *B, double *C, int N) {
+  for (int i = 0; i < N; ++i) {
+    for (int j = 0; j < N; ++j) {
+      for (int k = 0; k < N; ++k) {
+        C[i * N + j] += A[i * N + k] * B[k * N + j];
+      }
+    }
+  }
+}
+
 __global__ void gemm_kernel(double *A, double *B, double *C, int M, int N, int K) {
   extern __shared__ double shared_mem[];
 
