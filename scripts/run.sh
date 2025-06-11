@@ -32,7 +32,7 @@ echo "Starting submission of SLURM jobs based on CSV files in tests/ ..."
 CSV_FILES_DIR="tests"
 
 for csv_file_path in "$CSV_FILES_DIR"/*.csv; do
-    echo "$csv_file_path"
+    cat "$csv_file_path"
     if [ ! -f "$csv_file_path" ]; then
         echo "Warning: No CSV files found in $CSV_FILES_DIR, or $csv_file_path is not a file."
         continue
@@ -40,11 +40,13 @@ for csv_file_path in "$CSV_FILES_DIR"/*.csv; do
 
     csv_filename=$(basename "$csv_file_path")
     csv_filename_no_ext="${csv_filename%.*}"
-    echo "Processing CSV file: $csv_filename"
 
     {
-        read
-        while IFS=, read -r matrix_width processes GPU_number tile_width grid_width grid_height; do
+        read header
+        while IFS= read -r line || [[ -n "$line" ]]; do
+            [[ -z "$line" ]] && continue
+            
+            IFS=',' read -r matrix_width processes GPU_number tile_width grid_width grid_height <<< "$line"
 
             MSIZE=$(echo "$matrix_width" | xargs)
             NTASK=$(echo "$processes" | xargs)
