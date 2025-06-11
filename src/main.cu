@@ -180,6 +180,21 @@ int main(int argc, char *argv[]) {
             N, size, num_blocks, threads_per_block, end_time);
   }
 
+  memset(C, 0, N * N * sizeof(double));
+
+  start_time = get_cur_time();
+  if (phpc_gemm_summa_cublas(grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, tile_width) != 0) {
+    fprintf(stderr, "Error in phpc_gemm_summa_cublas with tile_width = %d\n", tile_width);
+  }
+  end_time = get_cur_time() - start_time;
+
+  if (rank == 0 && csv_file != NULL) {
+    threads_per_block = tile_width * tile_width;
+    num_blocks = grid_width * grid_height;
+    fprintf(csv_file, "%d,%d,%d,%d,SUMMA_CUBLAS,%f\n",
+            N, size, num_blocks, threads_per_block, end_time);
+  }
+
   // ==================================================
   // TEST 2
   // ==================================================
@@ -205,6 +220,21 @@ int main(int argc, char *argv[]) {
             N, size, num_blocks, threads_per_block, end_time);
   }
 
+  memset(C, 0, N * N * sizeof(double));
+
+  start_time = get_cur_time();
+  if (phpc_gemm_summa_cublas(grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, tile_width) != 0) {
+    fprintf(stderr, "Error in phpc_gemm_summa_cublas with tile_width = %d\n", tile_width);
+  }
+  end_time = get_cur_time() - start_time;
+
+  if (rank == 0 && csv_file != NULL) {
+    threads_per_block = tile_width * tile_width;
+    num_blocks = grid_width * grid_height;
+    fprintf(csv_file, "%d,%d,%d,%d,SUMMA_CUBLAS,%f\n",
+            N, size, num_blocks, threads_per_block, end_time);
+  }
+
   // ==================================================
   // TEST 3
   // ==================================================
@@ -227,6 +257,21 @@ int main(int argc, char *argv[]) {
     threads_per_block = tile_width * tile_width;
     num_blocks = grid_width * grid_height;
     fprintf(csv_file, "%d,%d,%d,%d,SUMMA_CUDA,%f\n",
+            N, size, num_blocks, threads_per_block, end_time);
+  }
+
+  memset(C, 0, N * N * sizeof(double));
+
+  start_time = get_cur_time();
+  if (phpc_gemm_summa_cublas(grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, tile_width) != 0) {
+    fprintf(stderr, "Error in phpc_gemm_summa_cublas with tile_width = %d\n", tile_width);
+  }
+  end_time = get_cur_time() - start_time;
+
+  if (rank == 0 && csv_file != NULL) {
+    threads_per_block = tile_width * tile_width;
+    num_blocks = grid_width * grid_height;
+    fprintf(csv_file, "%d,%d,%d,%d,SUMMA_CUBLAS,%f\n",
             N, size, num_blocks, threads_per_block, end_time);
   }
 
@@ -256,6 +301,21 @@ int main(int argc, char *argv[]) {
             N, size, num_blocks, threads_per_block, end_time);
   }
 
+  memset(C, 0, N * N * sizeof(double));
+
+  start_time = get_cur_time();
+  if (phpc_gemm_summa_cublas(grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, tile_width) != 0) {
+    fprintf(stderr, "Error in phpc_gemm_summa_cublas with tile_width = %d\n", tile_width);
+  }
+  end_time = get_cur_time() - start_time;
+
+  if (rank == 0 && csv_file != NULL) {
+    threads_per_block = tile_width * tile_width;
+    num_blocks = grid_width * grid_height;
+    fprintf(csv_file, "%d,%d,%d,%d,SUMMA_CUBLAS,%f\n",
+            N, size, num_blocks, threads_per_block, end_time);
+  }
+
   // ==================================================
   // TEST 5
   // ==================================================
@@ -279,6 +339,21 @@ int main(int argc, char *argv[]) {
     threads_per_block = tile_width * tile_width;
     num_blocks = grid_width * grid_height;
     fprintf(csv_file, "%d,%d,%d,%d,SUMMA_CUDA,%f\n",
+            N, size, num_blocks, threads_per_block, end_time);
+  }
+
+  memset(C, 0, N * N * sizeof(double));
+
+  start_time = get_cur_time();
+  if (phpc_gemm_summa_cublas(grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, tile_width) != 0) {
+    fprintf(stderr, "Error in phpc_gemm_summa_cublas with tile_width = %d\n", tile_width);
+  }
+  end_time = get_cur_time() - start_time;
+
+  if (rank == 0 && csv_file != NULL) {
+    threads_per_block = tile_width * tile_width;
+    num_blocks = grid_width * grid_height;
+    fprintf(csv_file, "%d,%d,%d,%d,SUMMA_CUBLAS,%f\n",
             N, size, num_blocks, threads_per_block, end_time);
   }
 
