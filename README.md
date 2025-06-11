@@ -24,6 +24,8 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
+Compile and run the code:
+
 ```bash
 mkdir -p csv profiling bin
 nvcc -I/usr/local/openmpi/include -L/usr/local/openmpi/lib -lmpi -lcublas -lm -arch=sm_89 src/main.cu src/utils.cu src/phpc_matrix_operations.cu -o bin/a.out
@@ -34,7 +36,7 @@ mpirun -np <n_process> bin/a.out <matrix_size>
 > 
 > Your system could have installed OpenMPI in a different location. Adjust the `-I` and `-L` flags accordingly.
 
-To generate the plots, run the Python script
+Generate the plots:
 ```bash
 python3 scripts/plot.py
 ```
