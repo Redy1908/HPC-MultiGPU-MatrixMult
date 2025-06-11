@@ -32,7 +32,6 @@ echo "Generating and submitting SLURM jobs based on CSV files in the 'tests' dir
 CSV_FILES_DIR="tests"
 
 for csv_file_path in "$CSV_FILES_DIR"/*.csv; do
-    cat "$csv_file_path"
     if [ ! -f "$csv_file_path" ]; then
         echo "Warning: No CSV files found in $CSV_FILES_DIR, or $csv_file_path is not a file."
         continue
