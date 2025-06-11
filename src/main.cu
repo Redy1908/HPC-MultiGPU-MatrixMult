@@ -1,3 +1,4 @@
+#include <mpi.h>
 #include <stdio.h>
 
 #include "phpc_matrix_operations.cuh"
