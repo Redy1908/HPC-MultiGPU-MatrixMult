@@ -80,6 +80,7 @@ int main(int argc, char *argv[]) {
   // ==================================================
   // Test di correttezza
   // ==================================================
+  if (rank == 0) printf("\nInitializing matrix A and B with all elements set to 2.0\n");
   for (i = 0; i < N; i++) {
     for (j = 0; j < N; j++) {
       *(A + i * N + j) = 2.0;
@@ -97,6 +98,7 @@ int main(int argc, char *argv[]) {
   MPI_Barrier(grid_comm);
 
   if (rank == 0) {
+    printf("Checking correctness...\n");
     int test_correctness = 1;
     for (i = 0; i < N; i++) {
       for (j = 0; j < N; j++) {
@@ -135,21 +137,14 @@ int main(int argc, char *argv[]) {
     fprintf(csv_file, "matrix_size,n_proc,n_gpu,n_block,n_thread,method,time\n");
   }
 
-  srand(0);
-  for (i = 0; i < N; i++) {
-    for (j = 0; j < N; j++) {
-      *(A + i * N + j) = (double)rand() / RAND_MAX;
-      *(B + i * N + j) = (double)rand() / RAND_MAX;
-      *(C + i * N + j) = 0.0;
-    }
-  }
-
-  if (rank == 0) printf("\nRunning tests...");
+  MPI_Barrier(MPI_COMM_WORLD);
+  if (rank == 0) printf("\nRunning tests:\n");
 
   // ==================================================
   // TEST Iterative
   // ==================================================
   if (rank == 0) {
+    printf("  Running iterative test...\n");
     memset(C, 0, N * N * sizeof(double));
 
     start_time = get_cur_time();
@@ -163,6 +158,7 @@ int main(int argc, char *argv[]) {
   // Test SUMMA CUDA
   // ==================================================
   MPI_Barrier(MPI_COMM_WORLD);
+  if (rank == 0) printf("  Running SUMMA CUDA test...\n");
   memset(C, 0, N * N * sizeof(double));
 
   start_time = get_cur_time();
@@ -177,6 +173,7 @@ int main(int argc, char *argv[]) {
   // Test SUMMA CUBLAS with the current tile width and grid size
   // ==================================================
   MPI_Barrier(MPI_COMM_WORLD);
+  if (rank == 0) printf("  Running SUMMA CUBLAS test...\n");
   memset(C, 0, N * N * sizeof(double));
 
   start_time = get_cur_time();
@@ -191,7 +188,7 @@ int main(int argc, char *argv[]) {
 
   if (rank == 0) {
     fclose(csv_file);
-    printf("\nAll tests completed.\n\n");
+    printf("\n\n  All tests completed.\n\n");
   }
 
   free(A);
