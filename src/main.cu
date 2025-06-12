@@ -90,9 +90,10 @@ int main(int argc, char *argv[]) {
       *(C + i * N + j) = 0.0;
     }
   }
-  if (rank == 0) printf("Matrix initialization complete.\n");
-
-  if (rank == 0) printf("\nRunning correctness test...\n");
+  if (rank == 0) {
+    printf("Matrix initialization complete.\n");
+    printf("\nRunning correctness test...\n");
+  }
 
   if (phpc_gemm_summa_cuda(grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, tile_width) != 0) {
     fprintf(stderr, "Error in phpc_gemm_summa_cuda\n");
@@ -140,12 +141,27 @@ int main(int argc, char *argv[]) {
     fprintf(csv_file, "matrix_size,n_proc,n_gpu,n_block,n_thread,method,time\n");
   }
 
-  MPI_Barrier(MPI_COMM_WORLD);
-  if (rank == 0) printf("\nRunning tests:\n");
+  if (rank == 0) {
+    printf("\nInitializing matrix A and B to random values, matrix C to 0.0...\n");
+  }
+  srand(0);
+  for (i = 0; i < N; i++) {
+    for (j = 0; j < N; j++) {
+      *(A + i * N + j) = (double)rand() / RAND_MAX;
+      *(B + i * N + j) = (double)rand() / RAND_MAX;
+      *(C + i * N + j) = 0.0;
+    }
+  }
+
+  if (rank == 0) {
+    printf("Matrix initialization complete.\n");
+    printf("\nRunning tests:\n");
+  }
 
   // ==================================================
   // TEST Iterative
   // ==================================================
+  MPI_Barrier(MPI_COMM_WORLD);
   if (rank == 0) {
     printf("  Running iterative test...\n");
     memset(C, 0, N * N * sizeof(double));
