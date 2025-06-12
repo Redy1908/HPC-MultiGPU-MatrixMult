@@ -1,0 +1,119 @@
+\documentclass[a4paper]{article}
+\usepackage[italian]{babel}
+\usepackage[style=ieee,backend=biber]{biblatex} \addbibresource{bibliography.bib}
+\usepackage{csquotes}
+% \usepackage{blindtext}
+\usepackage{hyperref}
+\usepackage{algpseudocode}
+\usepackage[table]{xcolor}
+% \usepackage{minted}
+
+\title{Report PHPC}
+\author{Pierluigi Supino \and Rodolfo Diana \and Salvatore Di Gennaro}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+
+\section{Introduzione}
+
+Sviluppare un’applicazione per il prodotto tra matrici su cluster multi-nodo e multi-GPU per nodo (MPI + CUDA, attraverso SLURM). All’interno di questa applicazione devono essere possibili entrambe le seguenti:
+\begin{enumerate}
+    \item Utilizzare kernel originali per i calcoli sulla GPU
+    \item Utilizzare funzioni della libreria cuBLAS in alternativa a quelle originali
+\end{enumerate}
+a.
+b. Utilizzare funzioni della libreria cuBLAS in alternativa a quelle originali
+2. Analizzare le performance tramite speed-up, efficienza e profiling con NVIDIA Nsight.
+3. Esplorare l’uso di NCCL per la comunicazione ottimizzata fra GPU e valutarne benefici e limiti.
+
+\subsection{Implementazione}
+
+Implementazione
+$$C=C+AB$$
+
+\begin{enumerate}
+    \item globalmente a livello di processi;
+    \item localmente a livello di gpu.
+\end{enumerate}
+
+\subsection{Processi}
+Il prodotto tra matrici viene eseguito a livello di processi tramite SUMMA (Scalable Universal Matrix Multiplication Algorithm)\cite{SUMMA}.
+Suddividiamo i diversi processi una griglia bidimensionale $p \times p$\footnote{In generale l'algoritmo permetterebbe di avere qualsiasi griglia $p \times q$, ma è stato preso in considerazione il caso più semplice.}.
+
+L'algoritmo funziona a fasi, in cui per ognuna i processori collaborano per combinare blocchi specifici delle matrici $A$ e $B$. Ogni riga di processori condivide tra sé il blocco di $A$ rilevante per quella fase, mentre ogni colonna fa lo stesso con un blocco di $B$. Questo avviene tramite un’operazione di broadcast.
+Una volta ricevuti i blocchi necessari, ogni processore può calcolare una parte del prodotto parziale della matrice $C$, sommando il risultato a quello già accumulato. Ripetendo questa operazione per un numero di fasi pari alla dimensione della griglia (cioè $p \times p$), alla fine ogni processore avrà calcolato il suo blocco completo della matrice risultato $C$.
+
+Una volta eseguite tutte le operazioni, resta da raccogliere le diverse sottomatrici e ricomporle. In generale, sono disponibili diversi approcci a seconda di come sia necessario il risultato. In questo caso è stato deciso, per semplicità, che solo il processo 0 debba avere la matrice finale completa.
+
+\medskip Nel nostro algoritmo si suppone che le matrici $A$, $B$ e $C$ date in input a ogni processo siano delle dimensioni originali. Per eseguire il broadcast, sono stati creati dei tipi derivati appositi per tenere in considerazione gli spazi di memoria che intercorrono tra una riga e l'altra dei blocchi da inviare.
+\begin{table}[h]
+    \begin{tabular}{|l|l|l|l|}
+        \hline
+        \cellcolor{yellow}0 & \cellcolor{yellow}1 & 2  & 3  \\ \hline
+        \cellcolor{yellow}4 & \cellcolor{yellow}5 & 6  & 7  \\ \hline
+        8                   & 9                   & 10 & 11 \\ \hline
+        12                  & 13                  & 14 & 15 \\ \hline
+    \end{tabular}
+    \begin{tabular}{|l|l|l|l|l|l|l|l|l}
+        \hline
+        \cellcolor{yellow}0 & \cellcolor{yellow}1 & 2 & 3 & \cellcolor{yellow}4 & \cellcolor{yellow}5 & 6 & 7 & \dots \\ \hline
+    \end{tabular}
+\end{table}
+
+\subsection{GPU}
+\subsubsection{Multi-GPU}
+Per sfruttare al massimo le risorse disponibili, è stato necessario sviluppare un sistema che permettesse la suddivisione del lavoro su più GPU presenti nella macchina.
+Per evitare conflitti, ogni GPU calcola una sezione separata della matrice finale. In questo modo si evitano eventuali serializzazioni.
+Ogni GPU effettua quindi il prodotto tra la matrice A e la ``colonna'' assegnata della matrice B.
+% Le operazioni da eseguire sono:
+% \begin{enumerate}
+%     \item copiare le matrici A, B e C dalla memoria host alla memoria device;
+%     \item eseguire il prodotto sulla GPU;
+%     \item copiare il risultato dalla memoria device alla memoria host.
+% \end{enumerate}
+
+\begin{table}[h]
+    \begin{tabular}{|c|c|}
+        \hline
+              &       \\
+        $B_0$ & $B_1$ \\
+              &       \\ \hline
+    \end{tabular}
+
+    \begin{tabular}{|c|c|}
+        \hline
+         & \\
+         & \\
+         & \\ \hline
+    \end{tabular}
+    \begin{tabular}{|c|c|}
+        \hline
+              &       \\
+        $C_0$ & $C_1$ \\
+              &       \\ \hline
+    \end{tabular}
+\end{table}
+
+Ovviamente vorremo che le GPU svolgessero le operazioni in parallelo, quindi le funzioni chiamate dall'host devono essere di tipo non bloccante. In CUDA è possibile farlo utilizzando gli \textit{stream}, ovvero code di operazioni da eseguire in sequenza. Ad ogni GPU assegniamo uno stream.
+Una volta avviate tutte le operazioni, l'host rimane in attesa che i diversi stream finiscano.
+
+\subsubsection{Kernel}
+Utilizzo della shared memory. Utilizzo di warp. Memory coalescing. Access vectorization.
+
+\section{Analisi}
+
+\subsection{Analisi delle misurazioni}
+
+\subsection{NVIDIA Nsight Compute}
+
+\section{Esplorazione di NNCL}
+
+\subsection{Introduzione}
+
+\subsection{Possibili implementazioni}
+
+\printbibliography
+
+\end{document}
