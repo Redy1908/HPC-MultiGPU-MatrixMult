@@ -188,7 +188,7 @@ int main(int argc, char *argv[]) {
 
   if (rank == 0) {
     fclose(csv_file);
-    printf("\n\n  All tests completed.\n\n");
+    printf("\n  All tests completed.\n\n");
   }
 
   free(A);
