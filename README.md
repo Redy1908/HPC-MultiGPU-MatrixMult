@@ -17,14 +17,14 @@ From the project's root directory, prepare and launch the jobs:
 - OpenMPI
 - NVIDIA Nsight Systems (optional, for profiling)
 
-Install the required Python packages:
+From the project's root directory, install the required Python packages:
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Compile and run the code:
+From the project's root directory, compile and run the code:
 
 ```bash
 mkdir -p csv profiling bin
@@ -36,7 +36,7 @@ mpirun -np <n_process> bin/a.out <matrix_size> <tile_width> <grid_width> <grid_h
 > 
 > Your system could have installed OpenMPI in a different location. Adjust the `-I` and `-L` flags accordingly.
 
-Generate the plots:
+From the project's root directory, generate the plots:
 ```bash
 python3 scripts/plot.py
 ```
