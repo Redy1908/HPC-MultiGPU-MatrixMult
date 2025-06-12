@@ -80,6 +80,9 @@ int main(int argc, char *argv[]) {
   // ==================================================
   // Test di correttezza
   // ==================================================
+  if (rank == 0) {
+    printf("\nInitializing matrix A and B to 2.0, matrix C to 0.0...\n");
+  }
   for (i = 0; i < N; i++) {
     for (j = 0; j < N; j++) {
       *(A + i * N + j) = 2.0;
@@ -87,8 +90,10 @@ int main(int argc, char *argv[]) {
       *(C + i * N + j) = 0.0;
     }
   }
-
-  if (rank == 0) printf("\nRunning correctness test...\n");
+  if (rank == 0) {
+    printf("Matrix initialization complete.\n");
+    printf("\nRunning correctness test...\n");
+  }
 
   if (phpc_gemm_summa_cuda(grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, tile_width) != 0) {
     fprintf(stderr, "Error in phpc_gemm_summa_cuda\n");
@@ -96,21 +101,19 @@ int main(int argc, char *argv[]) {
 
   MPI_Barrier(grid_comm);
 
-  int test_correctness = 1;
-  for (i = 0; i < N; i++) {
-    for (j = 0; j < N; j++) {
-      if (C[i * N + j] != 4.0 * N) {
-        fprintf(stderr, "Correcteness error at rank %d, C[%d][%d] = %f\n", rank, i, j, C[i * N + j]);
-        test_correctness = 0;
+  if (rank == 0) {
+    printf("Checking correctness...\n");
+    int test_correctness = 1;
+    for (i = 0; i < N; i++) {
+      for (j = 0; j < N; j++) {
+        if (C[i * N + j] != 4.0 * N) {
+          fprintf(stderr, "Correcteness error at rank %d, C[%d][%d] = %f\n", rank, i, j, C[i * N + j]);
+          test_correctness = 0;
+        }
       }
     }
-  }
 
-  int global_test_passed = 0;
-  MPI_Allreduce(&test_correctness, &global_test_passed, 1, MPI_INT, MPI_MIN, grid_comm);
-
-  if (rank == 0) {
-    if (global_test_passed) {
+    if (test_correctness) {
       printf("Correctness test passed.\n");
     } else {
       printf("Correctness test FAILED. Aborting...\n");
@@ -138,6 +141,9 @@ int main(int argc, char *argv[]) {
     fprintf(csv_file, "matrix_size,n_proc,n_gpu,n_block,n_thread,method,time\n");
   }
 
+  if (rank == 0) {
+    printf("\nInitializing matrix A and B to random values, matrix C to 0.0...\n");
+  }
   srand(0);
   for (i = 0; i < N; i++) {
     for (j = 0; j < N; j++) {
@@ -147,12 +153,17 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  if (rank == 0) printf("\nRunning tests...");
+  if (rank == 0) {
+    printf("Matrix initialization complete.\n");
+    printf("\nRunning tests:\n");
+  }
 
   // ==================================================
   // TEST Iterative
   // ==================================================
+  MPI_Barrier(MPI_COMM_WORLD);
   if (rank == 0) {
+    printf("  Running iterative test...\n");
     memset(C, 0, N * N * sizeof(double));
 
     start_time = get_cur_time();
@@ -166,6 +177,7 @@ int main(int argc, char *argv[]) {
   // Test SUMMA CUDA
   // ==================================================
   MPI_Barrier(MPI_COMM_WORLD);
+  if (rank == 0) printf("  Running SUMMA CUDA test...\n");
   memset(C, 0, N * N * sizeof(double));
 
   start_time = get_cur_time();
@@ -180,6 +192,7 @@ int main(int argc, char *argv[]) {
   // Test SUMMA CUBLAS with the current tile width and grid size
   // ==================================================
   MPI_Barrier(MPI_COMM_WORLD);
+  if (rank == 0) printf("  Running SUMMA CUBLAS test...\n");
   memset(C, 0, N * N * sizeof(double));
 
   start_time = get_cur_time();
@@ -194,7 +207,7 @@ int main(int argc, char *argv[]) {
 
   if (rank == 0) {
     fclose(csv_file);
-    printf("\nAll tests completed.\n\n");
+    printf("\n  All tests completed.\n\n");
   }
 
   free(A);
