@@ -312,17 +312,8 @@ int phpc_gemm_cuda(const double *a, int lda, const double *b, int ldb, double *c
 }
 
 int phpc_gemm_summa(gemm_t f, MPI_Comm grid_comm, const double *A, const double *B, double *C, int N, int gpu_count, int grid_width, int grid_height, int block_width) {
-  if (grid_comm == NULL)
+  if (grid_comm == NULL || A == NULL || B == NULL || C == NULL || N <= 0)
     return 1;
-
-  int return_code = 0;
-  if (A == NULL || B == NULL || C == NULL || N <= 0)
-    return_code = 1;
-
-  /* check if any of the processes has failed */
-  MPI_Allreduce(MPI_IN_PLACE, &return_code, 1, MPI_INT, MPI_MAX, grid_comm);
-  if (return_code != 0)
-    return return_code;
 
   /* get MPI properties */
   int rank, size, dims[2], periods[2], coords[2];
@@ -349,13 +340,13 @@ int phpc_gemm_summa(gemm_t f, MPI_Comm grid_comm, const double *A, const double 
   double *buffer_a = (double *)malloc(local_A_rows * panel_K_dim * sizeof(double));
   double *buffer_b = (double *)malloc(panel_K_dim * local_B_cols * sizeof(double));
 
-  if (buffer_a == NULL || buffer_b == NULL)
-    return_code = 3;
-
-  /* check if any of the processes has failed */
-  MPI_Allreduce(MPI_IN_PLACE, &return_code, 1, MPI_INT, MPI_MAX, grid_comm);
-  if (return_code != 0)
-    goto cleanup; /* simple cleanup goto, no context weirdness, it's fine */
+  if (buffer_a == NULL || buffer_b == NULL) {
+    free(buffer_b);
+    free(buffer_a);
+    MPI_Comm_free(&row_comm);
+    MPI_Comm_free(&col_comm);
+    return 3;
+  }
 
   /* create derived datatypes to exchange the blocks across the network */
   /* this is due the fact the blocks a process must handle are a portion than the actual dimension of the matrices */
@@ -368,7 +359,7 @@ int phpc_gemm_summa(gemm_t f, MPI_Comm grid_comm, const double *A, const double 
   MPI_Type_commit(&block_b_type);
   MPI_Type_commit(&block_c_type);
 
-  for (int k = 0; k < lcm && return_code == 0; k++) {
+  for (int k = 0; k < lcm; k++) {
     int sender_column = k % dims[1];
     int sender_row = k % dims[0];
 
@@ -398,32 +389,37 @@ int phpc_gemm_summa(gemm_t f, MPI_Comm grid_comm, const double *A, const double 
 
     /* compute product of the blocks */
     int op_code = f(block_a, block_lda, block_b, block_ldb, offset_c, N, local_A_rows, panel_K_dim, local_B_cols, gpu_count, grid_width, grid_height, block_width);
-    MPI_Allreduce(&return_code, &op_code, 1, MPI_INT, MPI_MAX, grid_comm);
+
+    if (op_code != 0) {
+      return op_code;
+    }
   }
 
-  if (return_code == 0) {
-    /* gather matrices */
-    /* there's room for optimization by replacing bcasts with gathers but with matrices blocks it's a bit complex */
-    for (int i = 0; i < size; i++) {
-      int coords[2];
-      MPI_Cart_coords(grid_comm, i, 2, coords);
+  if (rank == 0) {
+    /* process 0 receives from all other processes */
+    for (int i = 1; i < size; i++) {
+      int sender_coords[2];
+      MPI_Cart_coords(grid_comm, i, 2, sender_coords);
 
-      double *c_start = C + N * coords[0] * local_A_rows + coords[1] * local_B_cols;
-      MPI_Bcast(c_start, 1, block_c_type, i, grid_comm);
+      double *c_dest = C + N * sender_coords[0] * local_A_rows + sender_coords[1] * local_B_cols;
+      MPI_Recv(c_dest, 1, block_c_type, i, 0, grid_comm, MPI_STATUS_IGNORE);
     }
+  } else {
+    /* all other processes send their results to process 0 */
+    double *c_start = C + N * coords[0] * local_A_rows + coords[1] * local_B_cols;
+    MPI_Send(c_start, 1, block_c_type, 0, 0, grid_comm);
   }
 
   MPI_Type_free(&block_c_type);
   MPI_Type_free(&block_b_type);
   MPI_Type_free(&block_a_type);
 
-cleanup:
   free(buffer_b);
   free(buffer_a);
   MPI_Comm_free(&row_comm);
   MPI_Comm_free(&col_comm);
 
-  return return_code;
+  return 0;
 }
 
 int phpc_gemm_summa_cuda(MPI_Comm grid_comm, const double *A, const double *B, double *C, int N, int gpu_count, int grid_width, int grid_height, int block_width) {

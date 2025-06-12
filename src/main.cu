@@ -96,21 +96,18 @@ int main(int argc, char *argv[]) {
 
   MPI_Barrier(grid_comm);
 
-  int test_correctness = 1;
-  for (i = 0; i < N; i++) {
-    for (j = 0; j < N; j++) {
-      if (C[i * N + j] != 4.0 * N) {
-        fprintf(stderr, "Correcteness error at rank %d, C[%d][%d] = %f\n", rank, i, j, C[i * N + j]);
-        test_correctness = 0;
+  if (rank == 0) {
+    int test_correctness = 1;
+    for (i = 0; i < N; i++) {
+      for (j = 0; j < N; j++) {
+        if (C[i * N + j] != 4.0 * N) {
+          fprintf(stderr, "Correcteness error at rank %d, C[%d][%d] = %f\n", rank, i, j, C[i * N + j]);
+          test_correctness = 0;
+        }
       }
     }
-  }
 
-  int global_test_passed = 0;
-  MPI_Allreduce(&test_correctness, &global_test_passed, 1, MPI_INT, MPI_MIN, grid_comm);
-
-  if (rank == 0) {
-    if (global_test_passed) {
+    if (test_correctness) {
       printf("Correctness test passed.\n");
     } else {
       printf("Correctness test FAILED. Aborting...\n");
