@@ -182,7 +182,7 @@ int main(int argc, char *argv[]) {
 
   start_time = get_cur_time();
   if (phpc_gemm_summa_cuda(grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, tile_width) != 0) {
-    fprintf(stderr, "Error in phpc_gemm_summa_cuda with tile_width = %d\n", tile_width);
+    fprintf(stderr, "Error the number of threads per block or the required shared memory are exceding the limits of the GPU.\n");
   }
   end_time = get_cur_time() - start_time;
 

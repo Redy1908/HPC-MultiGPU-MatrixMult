@@ -37,7 +37,7 @@ __global__ void gemm_kernel(double *A, double *B, double *C, int M, int N, int K
   int block_id_1d = blockIdx.y * gridDim.x + blockIdx.x;
   int total_launched_blocks = gridDim.x * gridDim.y;
 
-  // Grid-stride loop: ogni blocco itera sulle tile di C che gli sono assegnate
+  // Grid-stride loop: each block processes multiple tiles
   for (int current_tile_1d_idx = block_id_1d; current_tile_1d_idx < total_output_tiles; current_tile_1d_idx += total_launched_blocks) {
     int by_tile = current_tile_1d_idx / num_tiles_along_N;
     int bx_tile = current_tile_1d_idx % num_tiles_along_N;
@@ -78,12 +78,6 @@ __global__ void gemm_kernel(double *A, double *B, double *C, int M, int N, int K
 }
 
 int phpc_gemm_cublas(const double *a, int lda, const double *b, int ldb, double *c, int ldc, int m, int k, int n, int gpu_count, int grid_width, int grid_height, int block_width) {
-  int device_count;
-  cudaGetDeviceCount(&device_count);
-
-  if (gpu_count <= 0 || gpu_count > device_count || n % gpu_count != 0)
-    return 1;
-
   /**
    * Matrix A: each gpu copies the entire matrix
    *
@@ -106,7 +100,6 @@ int phpc_gemm_cublas(const double *a, int lda, const double *b, int ldb, double 
    * -------------------------
    */
 
-  int return_code = 0;
   int dev_n = n / gpu_count;
 
   double **dev_buffers_a = (double **)malloc(gpu_count * sizeof(double *));
@@ -115,15 +108,6 @@ int phpc_gemm_cublas(const double *a, int lda, const double *b, int ldb, double 
   cudaStream_t *streams = (cudaStream_t *)malloc(gpu_count * sizeof(cudaStream_t));
   cublasHandle_t *handles = (cublasHandle_t *)malloc(gpu_count * sizeof(cublasHandle_t));
 
-  if (dev_buffers_a == NULL || dev_buffers_b == NULL || dev_buffers_c == NULL || streams == NULL || handles == NULL) {
-    free(handles);
-    free(streams);
-    free(dev_buffers_c);
-    free(dev_buffers_b);
-    free(dev_buffers_a);
-    return 2;
-  }
-
   int launched_kernels = 0;
   double alpha = 1, beta = 1;
 
@@ -131,35 +115,15 @@ int phpc_gemm_cublas(const double *a, int lda, const double *b, int ldb, double 
     cudaSetDevice(gpu);
     cublasCreate_v2(&(handles[gpu]));
 
-    cudaError_t status;
+    cudaStreamCreate(&(streams[gpu]));
 
-    status = cudaStreamCreate(&(streams[gpu]));
-    if (status != cudaSuccess) {
-      return_code = 1;
-      break;
-    }
     launched_kernels++;
 
-    status = cudaMallocAsync(&(dev_buffers_a[gpu]), m * k * sizeof(double), streams[gpu]);
-    if (status != cudaSuccess) {
-      return_code = 1;
-      break;
-    }
+    cudaMallocAsync(&(dev_buffers_a[gpu]), m * k * sizeof(double), streams[gpu]);
 
-    status = cudaMallocAsync(&(dev_buffers_b[gpu]), k * dev_n * sizeof(double), streams[gpu]);
-    if (status != cudaSuccess) {
-      cudaFreeAsync(dev_buffers_a[gpu], streams[gpu]);
-      return_code = 1;
-      break;
-    }
+    cudaMallocAsync(&(dev_buffers_b[gpu]), k * dev_n * sizeof(double), streams[gpu]);
 
-    status = cudaMallocAsync(&(dev_buffers_c[gpu]), m * dev_n * sizeof(double), streams[gpu]);
-    if (status != cudaSuccess) {
-      cudaFreeAsync(dev_buffers_b[gpu], streams[gpu]);
-      cudaFreeAsync(dev_buffers_a[gpu], streams[gpu]);
-      return_code = 1;
-      break;
-    }
+    cudaMallocAsync(&(dev_buffers_c[gpu]), m * dev_n * sizeof(double), streams[gpu]);
 
     /* copy from host to device */
     cudaMemcpy2DAsync(dev_buffers_a[gpu], k * sizeof(double), a, lda * sizeof(double), k * sizeof(double), m, cudaMemcpyHostToDevice, streams[gpu]);
@@ -192,7 +156,7 @@ int phpc_gemm_cublas(const double *a, int lda, const double *b, int ldb, double 
   free(dev_buffers_b);
   free(dev_buffers_a);
 
-  return return_code;
+  return 0;
 }
 
 int phpc_gemm_cuda(const double *a, int lda, const double *b, int ldb, double *c, int ldc, int m, int k, int n, int gpu_count, int grid_width, int grid_height, int block_width) {
@@ -204,7 +168,7 @@ int phpc_gemm_cuda(const double *a, int lda, const double *b, int ldb, double *c
 
   int required_shared_memory = 2 * block_width * block_width * sizeof(double);
 
-  if (gpu_count <= 0 || grid_width <= 0 || grid_height <= 0 || block_width * block_width > max_threads_per_block || required_shared_memory > max_shared_memory_per_block || n % gpu_count != 0)
+  if (block_width * block_width > max_threads_per_block || required_shared_memory > max_shared_memory_per_block)
     return 1;
 
   /**
@@ -238,48 +202,20 @@ int phpc_gemm_cuda(const double *a, int lda, const double *b, int ldb, double *c
   double **dev_buffers_c = (double **)malloc(gpu_count * sizeof(double *));
   cudaStream_t *streams = (cudaStream_t *)malloc(gpu_count * sizeof(cudaStream_t));
 
-  if (dev_buffers_a == NULL || dev_buffers_b == NULL || dev_buffers_c == NULL || streams == NULL) {
-    free(streams);
-    free(dev_buffers_c);
-    free(dev_buffers_b);
-    free(dev_buffers_a);
-    return 2;
-  }
-
   int launched_kernels = 0;
-  int return_code = 0;
 
   for (int gpu = 0; gpu < gpu_count; gpu++) {
     cudaSetDevice(gpu);
-    cudaError_t status;
 
-    status = cudaStreamCreate(&(streams[gpu]));
-    if (status != cudaSuccess) {
-      return_code = 1;
-      break;
-    }
+    cudaStreamCreate(&(streams[gpu]));
+
     launched_kernels++;
 
-    status = cudaMallocAsync(&(dev_buffers_a[gpu]), m * k * sizeof(double), streams[gpu]);
-    if (status != cudaSuccess) {
-      return_code = 1;
-      break;
-    }
+    cudaMallocAsync(&(dev_buffers_a[gpu]), m * k * sizeof(double), streams[gpu]);
 
-    status = cudaMallocAsync(&(dev_buffers_b[gpu]), k * dev_n * sizeof(double), streams[gpu]);
-    if (status != cudaSuccess) {
-      cudaFreeAsync(dev_buffers_a[gpu], streams[gpu]);
-      return_code = 1;
-      break;
-    }
+    cudaMallocAsync(&(dev_buffers_b[gpu]), k * dev_n * sizeof(double), streams[gpu]);
 
-    status = cudaMallocAsync(&(dev_buffers_c[gpu]), m * dev_n * sizeof(double), streams[gpu]);
-    if (status != cudaSuccess) {
-      cudaFreeAsync(dev_buffers_b[gpu], streams[gpu]);
-      cudaFreeAsync(dev_buffers_a[gpu], streams[gpu]);
-      return_code = 1;
-      break;
-    }
+    cudaMallocAsync(&(dev_buffers_c[gpu]), m * dev_n * sizeof(double), streams[gpu]);
 
     /* copy from host to device */
     cudaMemcpy2DAsync(dev_buffers_a[gpu], k * sizeof(double), a, lda * sizeof(double), k * sizeof(double), m, cudaMemcpyHostToDevice, streams[gpu]);
@@ -308,13 +244,10 @@ int phpc_gemm_cuda(const double *a, int lda, const double *b, int ldb, double *c
   free(dev_buffers_b);
   free(dev_buffers_a);
 
-  return return_code;
+  return 0;
 }
 
 int phpc_gemm_summa(gemm_t f, MPI_Comm grid_comm, const double *A, const double *B, double *C, int N, int gpu_count, int grid_width, int grid_height, int block_width) {
-  if (grid_comm == NULL || A == NULL || B == NULL || C == NULL || N <= 0)
-    return 1;
-
   /* get MPI properties */
   int rank, size, dims[2], periods[2], coords[2];
   int remain_dims_row[2] = {0, 1};
@@ -339,14 +272,6 @@ int phpc_gemm_summa(gemm_t f, MPI_Comm grid_comm, const double *A, const double 
   /* prepare buffers to receive blocks from other processes */
   double *buffer_a = (double *)malloc(local_A_rows * panel_K_dim * sizeof(double));
   double *buffer_b = (double *)malloc(panel_K_dim * local_B_cols * sizeof(double));
-
-  if (buffer_a == NULL || buffer_b == NULL) {
-    free(buffer_b);
-    free(buffer_a);
-    MPI_Comm_free(&row_comm);
-    MPI_Comm_free(&col_comm);
-    return 3;
-  }
 
   /* create derived datatypes to exchange the blocks across the network */
   /* this is due the fact the blocks a process must handle are a portion than the actual dimension of the matrices */
@@ -388,11 +313,7 @@ int phpc_gemm_summa(gemm_t f, MPI_Comm grid_comm, const double *A, const double 
     }
 
     /* compute product of the blocks */
-    int op_code = f(block_a, block_lda, block_b, block_ldb, offset_c, N, local_A_rows, panel_K_dim, local_B_cols, gpu_count, grid_width, grid_height, block_width);
-
-    if (op_code != 0) {
-      return op_code;
-    }
+    f(block_a, block_lda, block_b, block_ldb, offset_c, N, local_A_rows, panel_K_dim, local_B_cols, gpu_count, grid_width, grid_height, block_width);
   }
 
   if (rank == 0) {
