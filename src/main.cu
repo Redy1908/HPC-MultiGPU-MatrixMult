@@ -80,7 +80,9 @@ int main(int argc, char *argv[]) {
   // ==================================================
   // Test di correttezza
   // ==================================================
-  if (rank == 0) printf("\nInitializing matrix A and B with all elements set to 2.0\n");
+  if (rank == 0) {
+    printf("\nInitializing matrix A and B to 2.0, matrix C to 0.0...\n");
+  }
   for (i = 0; i < N; i++) {
     for (j = 0; j < N; j++) {
       *(A + i * N + j) = 2.0;
@@ -88,6 +90,7 @@ int main(int argc, char *argv[]) {
       *(C + i * N + j) = 0.0;
     }
   }
+  if (rank == 0) printf("Matrix initialization complete.\n");
 
   if (rank == 0) printf("\nRunning correctness test...\n");
 
