@@ -95,9 +95,7 @@ int main(int argc, char *argv[]) {
     printf("\nRunning correctness test...\n");
   }
 
-  if (phpc_gemm_summa_cuda(grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, tile_width) != 0) {
-    fprintf(stderr, "Error in phpc_gemm_summa_cuda\n");
-  }
+  phpc_gemm_summa_cuda(grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, tile_width);
 
   MPI_Barrier(grid_comm);
 
@@ -181,9 +179,7 @@ int main(int argc, char *argv[]) {
   memset(C, 0, N * N * sizeof(double));
 
   start_time = get_cur_time();
-  if (phpc_gemm_summa_cuda(grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, tile_width) != 0) {
-    fprintf(stderr, "Error the number of threads per block or the required shared memory are exceding the limits of the GPU.\n");
-  }
+  phpc_gemm_summa_cuda(grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, tile_width);
   end_time = get_cur_time() - start_time;
 
   log_to_csv(csv_file, N, size, gpu_count, grid_width * grid_height, tile_width * tile_width, "SUMMA_CUDA", end_time);
@@ -196,9 +192,7 @@ int main(int argc, char *argv[]) {
   memset(C, 0, N * N * sizeof(double));
 
   start_time = get_cur_time();
-  if (phpc_gemm_summa_cublas(grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, tile_width) != 0) {
-    fprintf(stderr, "Error in phpc_gemm_summa_cublas with tile_width = %d\n", tile_width);
-  }
+  phpc_gemm_summa_cublas(grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, tile_width);
   end_time = get_cur_time() - start_time;
 
   log_to_csv(csv_file, N, size, gpu_count, grid_width * grid_height, tile_width * tile_width, "SUMMA_CUBLAS", end_time);

@@ -7,7 +7,7 @@
 #include "phpc_matrix_operations.cuh"
 #include "utils.cuh"
 
-typedef int (*gemm_t)(const double *a, int lda, const double *b, int ldb, double *c, int ldc, int m, int k, int n, int gpu_count, int grid_width, int grid_height, int block_width);
+typedef void (*gemm_t)(const double *a, int lda, const double *b, int ldb, double *c, int ldc, int m, int k, int n, int gpu_count, int grid_width, int grid_height, int block_width);
 
 void phpc_gemm_iterative(const double *A, const double *B, double *C, int N) {
   for (int i = 0; i < N; ++i) {
@@ -77,7 +77,7 @@ __global__ void gemm_kernel(double *A, double *B, double *C, int M, int N, int K
   }
 }
 
-int phpc_gemm_cublas(const double *a, int lda, const double *b, int ldb, double *c, int ldc, int m, int k, int n, int gpu_count, int grid_width, int grid_height, int block_width) {
+void phpc_gemm_cublas(const double *a, int lda, const double *b, int ldb, double *c, int ldc, int m, int k, int n, int gpu_count, int grid_width, int grid_height, int block_width) {
   /**
    * Matrix A: each gpu copies the entire matrix
    *
@@ -155,21 +155,16 @@ int phpc_gemm_cublas(const double *a, int lda, const double *b, int ldb, double 
   free(dev_buffers_c);
   free(dev_buffers_b);
   free(dev_buffers_a);
-
-  return 0;
 }
 
-int phpc_gemm_cuda(const double *a, int lda, const double *b, int ldb, double *c, int ldc, int m, int k, int n, int gpu_count, int grid_width, int grid_height, int block_width) {
-  int max_threads_per_block;
-  cudaDeviceGetAttribute(&max_threads_per_block, cudaDevAttrMaxThreadsPerBlock, 0);
-
+void phpc_gemm_cuda(const double *a, int lda, const double *b, int ldb, double *c, int ldc, int m, int k, int n, int gpu_count, int grid_width, int grid_height, int block_width) {
   int max_shared_memory_per_block;
   cudaDeviceGetAttribute(&max_shared_memory_per_block, cudaDevAttrMaxSharedMemoryPerBlock, 0);
 
   int required_shared_memory = 2 * block_width * block_width * sizeof(double);
 
-  if (block_width * block_width > max_threads_per_block || required_shared_memory > max_shared_memory_per_block)
-    return 1;
+  if (required_shared_memory > max_shared_memory_per_block)
+    printf("Warning: required shared memory exceeds the GPU block limit. This will impact performance.\n");
 
   /**
    * Matrix A: each gpu copies the entire matrix
@@ -243,8 +238,6 @@ int phpc_gemm_cuda(const double *a, int lda, const double *b, int ldb, double *c
   free(dev_buffers_c);
   free(dev_buffers_b);
   free(dev_buffers_a);
-
-  return 0;
 }
 
 int phpc_gemm_summa(gemm_t f, MPI_Comm grid_comm, const double *A, const double *B, double *C, int N, int gpu_count, int grid_width, int grid_height, int block_width) {
@@ -343,10 +336,10 @@ int phpc_gemm_summa(gemm_t f, MPI_Comm grid_comm, const double *A, const double 
   return 0;
 }
 
-int phpc_gemm_summa_cuda(MPI_Comm grid_comm, const double *A, const double *B, double *C, int N, int gpu_count, int grid_width, int grid_height, int block_width) {
-  return phpc_gemm_summa(phpc_gemm_cuda, grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, block_width);
+void phpc_gemm_summa_cuda(MPI_Comm grid_comm, const double *A, const double *B, double *C, int N, int gpu_count, int grid_width, int grid_height, int block_width) {
+  phpc_gemm_summa(phpc_gemm_cuda, grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, block_width);
 }
 
-int phpc_gemm_summa_cublas(MPI_Comm grid_comm, const double *A, const double *B, double *C, int N, int gpu_count, int grid_width, int grid_height, int block_width) {
-  return phpc_gemm_summa(phpc_gemm_cublas, grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, block_width);
+void phpc_gemm_summa_cublas(MPI_Comm grid_comm, const double *A, const double *B, double *C, int N, int gpu_count, int grid_width, int grid_height, int block_width) {
+  phpc_gemm_summa(phpc_gemm_cublas, grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, block_width);
 }
