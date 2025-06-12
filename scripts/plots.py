@@ -32,8 +32,8 @@ def generate_all_analysis(df_list):
             for _, row in df.iterrows():
                 all_data.append({
                     'n_block': row['n_block'],
-                    'n_thread': row['n_thread'],
-                    'total_threads': row['n_block'] * row['n_thread'],
+                    'n_thread_per_block': row['n_thread_per_block'],
+                    'total_threads': row['n_block'] * row['n_thread_per_block'],
                     'time': row['time'],
                     'method': row['method'],
                     'matrix_size': row['matrix_size'],
@@ -45,15 +45,15 @@ def generate_all_analysis(df_list):
         combined = pd.DataFrame(all_data)
 
         # Caso a.1
-        fixed_thread = combined['n_thread'].mode()[0]
-        subset_a1 = combined[combined['n_thread'] == fixed_thread]
+        fixed_thread = combined['n_thread_per_block'].mode()[0]
+        subset_a1 = combined[combined['n_thread_per_block'] == fixed_thread]
         plt.figure()
         for method in subset_a1['method'].unique():
             mdata = subset_a1[subset_a1['method'] == method]
             plt.plot(mdata['n_block'], mdata['time'], label=method)
         plt.xlabel("Numero di processi (n_block)")
         plt.ylabel("Tempo (s)")
-        plt.title(f"Caso a.1 - N={N}, n_thread={fixed_thread}")
+        plt.title(f"Caso a.1 - N={N}, n_thread_per_block={fixed_thread}")
         plt.legend()
         plt.savefig(f"plots/caso_a1_N{N}.png")
         plt.close()
@@ -64,7 +64,7 @@ def generate_all_analysis(df_list):
         plt.figure()
         for method in subset_a2['method'].unique():
             mdata = subset_a2[subset_a2['method'] == method]
-            plt.plot(mdata['n_thread'], mdata['time'], label=method)
+            plt.plot(mdata['n_thread_per_block'], mdata['time'], label=method)
         plt.xlabel("Numero di thread per processo")
         plt.ylabel("Tempo (s)")
         plt.title(f"Caso a.2 - N={N}, n_block={fixed_block}")
@@ -74,18 +74,18 @@ def generate_all_analysis(df_list):
 
         # Caso a.3
         min_row = combined.loc[combined['time'].idxmin()]
-        print(f"Caso a.3 (N={N}) - Min time: {min_row['time']}s @ n_block={min_row['n_block']} n_thread={min_row['n_thread']} method={min_row['method']}")
+        print(f"Caso a.3 (N={N}) - Min time: {min_row['time']}s @ n_block={min_row['n_block']} n_thread_per_block={min_row['n_thread_per_block']} method={min_row['method']}")
 
         # Caso b
         combined['work_per_task'] = combined['matrix_size'] / combined['n_block']
-        subset_b = combined[combined['n_thread'] == fixed_thread]
+        subset_b = combined[combined['n_thread_per_block'] == fixed_thread]
         plt.figure()
         for method in subset_b['method'].unique():
             mdata = subset_b[subset_b['method'] == method]
             plt.plot(mdata['n_block'], mdata['time'], label=method)
         plt.xlabel("Numero di processi")
         plt.ylabel("Tempo (s)")
-        plt.title(f"Caso b - N={N}, n_thread={fixed_thread}")
+        plt.title(f"Caso b - N={N}, n_thread_per_block={fixed_thread}")
         plt.legend()
         plt.savefig(f"plots/caso_b_N{N}.png")
         plt.close()
@@ -105,14 +105,14 @@ def generate_all_analysis(df_list):
         plt.close()
 
         # Caso d
-        subset_d = combined[combined['n_thread'] == fixed_thread]
+        subset_d = combined[combined['n_thread_per_block'] == fixed_thread]
         plt.figure()
         for method in subset_d['method'].unique():
             mdata = subset_d[subset_d['method'] == method]
             plt.plot(mdata['n_block'], mdata['time'], label=method)
         plt.xlabel("Numero di processi")
         plt.ylabel("Tempo (s)")
-        plt.title(f"Caso d - N={N}, n_thread={fixed_thread}")
+        plt.title(f"Caso d - N={N}, n_thread_per_block={fixed_thread}")
         plt.legend()
         plt.savefig(f"plots/caso_d_N{N}.png")
         plt.close()
@@ -120,7 +120,7 @@ def generate_all_analysis(df_list):
         # Speed-up e metriche
         for method in combined['method'].unique():
             mdata = combined[combined['method'] == method]
-            base_row = mdata[(mdata['n_block'] == 1) & (mdata['n_thread'] == 1)]
+            base_row = mdata[(mdata['n_block'] == 1) & (mdata['n_thread_per_block'] == 1)]
             if not base_row.empty:
                 T1 = base_row['time'].values[0]
                 mdata = mdata.copy()

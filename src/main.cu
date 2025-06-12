@@ -136,7 +136,7 @@ int main(int argc, char *argv[]) {
       MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
     }
 
-    fprintf(csv_file, "matrix_size,n_proc,n_gpu,n_block,n_thread,method,time\n");
+    fprintf(csv_file, "matrix_size,n_proc,n_gpu,n_block,n_thread_per_block,method,time\n");
   }
 
   if (rank == 0) {
