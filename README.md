@@ -27,7 +27,7 @@ pip install -r requirements.txt
 From the project's root directory, compile and run the code:
 
 ```bash
-mkdir -p csv profiling bin
+mkdir -p csv profiling bin plots
 nvcc -I/usr/local/openmpi/include -L/usr/local/openmpi/lib -lmpi -lcublas -lm -arch=sm_89 src/main.cu src/utils.cu src/phpc_matrix_operations.cu -o bin/a.out
 mpirun -np <n_process> bin/a.out <matrix_size> <tile_width> <grid_width> <grid_height> <test_name>
 ```
