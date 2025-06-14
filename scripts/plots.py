@@ -1,162 +1,160 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 from pathlib import Path
 import os
 import glob
-from collections import defaultdict
 
-def load_csv_by_case():
-    """Raggruppa i CSV in base al caso, usando il prefisso nel nome file"""
+
+def group_files_by_case():
     csv_dir = Path('csv')
     csv_files = glob.glob(os.path.join(csv_dir, "*.csv"))
 
-    case_data = defaultdict(list)
+    grouped = {
+        'a1': [],
+        'a2': [],
+        'b': [],
+        'c': [],
+        'd': [],
+        'a3': []  # speciale: unione di a1 + a2
+    }
 
     for file in csv_files:
-        filename = Path(file).name
-        if filename.startswith("testA2_"):
-            case_data['a2'].append(pd.read_csv(file))
-        elif filename.startswith("testA_"):
-            case_data['a1'].append(pd.read_csv(file))
-        elif filename.startswith("testB_"):
-            case_data['b'].append(pd.read_csv(file))
-        elif filename.startswith("testC_"):
-            case_data['c'].append(pd.read_csv(file))
-        elif filename.startswith("testD_"):
-            case_data['d'].append(pd.read_csv(file))
+        fname = Path(file).name
+        if fname.startswith("testA2"):
+            grouped['a2'].append(file)
+            grouped['a3'].append(file)
+        elif fname.startswith("testA"):
+            grouped['a1'].append(file)
+            grouped['a3'].append(file)
+        elif fname.startswith("testB"):
+            grouped['b'].append(file)
+        elif fname.startswith("testC"):
+            grouped['c'].append(file)
+        elif fname.startswith("testD"):
+            grouped['d'].append(file)
 
-    # Per a.3, unisci A e A2
-    case_data['a3'] = case_data['a1'] + case_data['a2']
-    return case_data
+    return grouped
+
 
 def preprocess(df):
-    """Calcola colonne utili derivate"""
     df['total_threads'] = df.apply(
         lambda row: row['n_block'] * row['n_thread_per_block'] if row['n_block'] > 0 and row['n_thread_per_block'] > 0 else 1,
         axis=1
     )
-    df['work_per_task'] = df['matrix_size'] / df['n_block']
-    df['work_per_thread'] = df['matrix_size'] / df['total_threads']
     return df
 
+
 def plot_case_group(case_tag, dfs):
-    """Crea i grafici di performance per un caso (a1, a2, b, c, d)"""
     os.makedirs("plots", exist_ok=True)
-    combined = pd.concat(dfs, ignore_index=True)
-    combined = preprocess(combined)
+    df = pd.concat(dfs, ignore_index=True)
+    df = preprocess(df)
 
-    for N in sorted(combined['matrix_size'].unique()):
-        subset = combined[combined['matrix_size'] == N]
+    iterative_time = df[df['method'] == 'ITERATIVE']['time'].mean()
+    cublas_data = df[df['method'] == 'SUMMA_CUBLAS']
 
-        iterative_time = subset[subset['method'] == 'ITERATIVE']['time'].mean()
-        cublas_time = subset[subset['method'] == 'SUMMA_CUBLAS']['time'].mean()
+    x_param = 'n_block' if case_tag in ['a1', 'b', 'd'] else 'n_thread_per_block'
 
-        x_param = ''
-        fixed_params = []
-        if case_tag == 'a1':
-            x_param = 'n_block'
-            fixed_params = ['n_thread_per_block']
-        elif case_tag == 'a2':
-            x_param = 'n_thread_per_block'
-            fixed_params = ['n_block']
-        elif case_tag == 'b':
-            x_param = 'n_block'
-            fixed_params = ['n_thread_per_block']
-        elif case_tag == 'c':
-            x_param = 'total_threads'
-            fixed_params = ['n_block']
-        elif case_tag == 'd':
-            x_param = 'n_block'
-            fixed_params = ['n_thread_per_block']
+    plt.figure()
+    for method in df['method'].unique():
+        if method == 'ITERATIVE':
+            continue
+        mgroup = df[df['method'] == method]
+        plt.plot(mgroup[x_param], mgroup['time'], label=method)
 
-        # Plotta i tempi
+    x_vals = sorted(df[x_param].unique())
+    plt.plot(x_vals, [iterative_time] * len(x_vals), linestyle='--', label='ITERATIVE')
+
+    if not cublas_data.empty:
+        y_vals = [cublas_data['time'].mean()] * len(x_vals)
+        plt.plot(x_vals, y_vals, linestyle='--', label='SUMMA_CUBLAS')
+
+    plt.xlabel(x_param)
+    plt.ylabel("Tempo (s)")
+    plt.title(f"Caso {case_tag}")
+    plt.legend()
+    plt.savefig(f"plots/caso_{case_tag}.png")
+    plt.close()
+
+    # Metriche
+    T1 = iterative_time
+    for method in df['method'].unique():
+        if method == 'ITERATIVE':
+            continue
+        mdata = df[df['method'] == method].copy()
+        mdata['speedup'] = T1 / mdata['time']
+        mdata['efficiency'] = mdata['speedup'] / mdata['total_threads']
+        mdata['scaled_speedup'] = (mdata['matrix_size'] ** 3) / (T1 * mdata['time'])
+        mdata['scaled_efficiency'] = mdata['scaled_speedup'] / mdata['total_threads']
+        mdata['gflops'] = (2 * (mdata['matrix_size'] ** 3)) / (mdata['time'] * 1e9)
+        mdata.to_csv(f"plots/metrics_{case_tag}_{method}.csv", index=False)
+
         plt.figure()
-        for key, group in subset.groupby(fixed_params):
-            label_suffix = ', '.join(f"{param}={val}" for param, val in zip(fixed_params, key if isinstance(key, tuple) else [key]))
-            for method in group['method'].unique():
-                if method == 'ITERATIVE':
-                    continue
-                mgroup = group[group['method'] == method]
-                plt.plot(mgroup[x_param], mgroup['time'], label=f"{method} ({label_suffix})")
-
-        x_vals = sorted(subset[x_param].unique())
-        plt.plot(x_vals, [iterative_time] * len(x_vals), linestyle='--', label='ITERATIVE')
-        if not np.isnan(cublas_time):
-            plt.plot(x_vals, [cublas_time] * len(x_vals), linestyle='--', label='SUMMA_CUBLAS')
-
+        plt.plot(mdata[x_param], mdata['speedup'], label='Speed-up')
+        plt.plot(mdata[x_param], mdata['scaled_speedup'], label='Speed-up scalato')
         plt.xlabel(x_param)
-        plt.ylabel("Tempo (s)")
-        plt.title(f"Caso {case_tag} - N={N}")
+        plt.ylabel("Speed-up")
+        plt.title(f"Speed-up {method} - Caso {case_tag}")
         plt.legend()
-        plt.savefig(f"plots/caso_{case_tag}_N{N}.png")
+        plt.savefig(f"plots/speedup_{case_tag}_{method}.png")
         plt.close()
 
-        # Calcola e salva metriche
-        T1 = iterative_time
-        for method in subset['method'].unique():
-            if method == 'ITERATIVE':
-                continue
-            mdata = subset[subset['method'] == method].copy()
-            mdata['speedup'] = T1 / mdata['time']
-            mdata['efficiency'] = mdata['speedup'] / mdata['total_threads']
-            mdata['scaled_speedup'] = (mdata['matrix_size'] ** 3) / (T1 * mdata['time'])
-            mdata['scaled_efficiency'] = mdata['scaled_speedup'] / mdata['total_threads']
-            mdata['gflops'] = (2 * (mdata['matrix_size'] ** 3)) / (mdata['time'] * 1e9)
-
-            mdata.to_csv(f"plots/metrics_{case_tag}_{method}_N{N}.csv", index=False)
-
-            # Grafici speedup/efficienza/GFlops
-            for metric, ylabel in [
-                ('speedup', 'Speed-up'),
-                ('scaled_speedup', 'Speed-up scalato'),
-                ('efficiency', 'Efficienza'),
-                ('scaled_efficiency', 'Efficienza scalata'),
-                ('gflops', 'GFLOPS'),
-            ]:
-                plt.figure()
-                plt.plot(mdata[x_param], mdata[metric])
-                plt.xlabel(x_param)
-                plt.ylabel(ylabel)
-                plt.title(f"{ylabel} {method} N={N} - Caso {case_tag}")
-                plt.savefig(f"plots/{metric}_{case_tag}_{method}_N{N}.png")
-                plt.close()
-
-def plot_case_a3_3d(dfs):
-    """Genera il grafico 3D per il caso a.3"""
-    os.makedirs("plots", exist_ok=True)
-    combined = pd.concat(dfs, ignore_index=True)
-    combined = preprocess(combined)
-
-    for N in sorted(combined['matrix_size'].unique()):
-        subset = combined[combined['matrix_size'] == N]
-        min_row = subset.loc[subset['time'].idxmin()]
-        print(f"[Caso a.3] N={N} - Min time: {min_row['time']:.6f}s @ n_block={min_row['n_block']} n_thread_per_block={min_row['n_thread_per_block']} method={min_row['method']}")
-
-        fig = plt.figure()
-        ax = fig.add_subplot(111, projection='3d')
-        ax.scatter(subset['n_block'], subset['n_thread_per_block'], subset['time'], c='b', marker='o')
-        ax.set_xlabel('n_block')
-        ax.set_ylabel('n_thread_per_block')
-        ax.set_zlabel('time')
-        ax.set_title(f'Caso a.3 - Tempo rispetto a n_block e n_thread_per_block (N={N})')
-        plt.savefig(f"plots/metrics_a3_N{N}.png")
+        plt.figure()
+        plt.plot(mdata[x_param], mdata['efficiency'], label='Efficienza')
+        plt.plot(mdata[x_param], mdata['scaled_efficiency'], label='Efficienza scalata')
+        plt.xlabel(x_param)
+        plt.ylabel("Efficienza")
+        plt.title(f"Efficienza {method} - Caso {case_tag}")
+        plt.legend()
+        plt.savefig(f"plots/efficiency_{case_tag}_{method}.png")
         plt.close()
+
+        plt.figure()
+        plt.plot(mdata[x_param], mdata['gflops'])
+        plt.xlabel(x_param)
+        plt.ylabel("GFLOPS")
+        plt.title(f"GFLOPS {method} - Caso {case_tag}")
+        plt.savefig(f"plots/gflops_{case_tag}_{method}.png")
+        plt.close()
+
+
+def plot_case_a3(dfs):
+    from mpl_toolkits.mplot3d import Axes3D
+    import matplotlib.pyplot as plt
+
+    df = pd.concat(dfs, ignore_index=True)
+    df = preprocess(df)
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.scatter(df['n_block'], df['n_thread_per_block'], df['time'], c='b', marker='o')
+
+    min_row = df.loc[df['time'].idxmin()]
+    print(f"[a3] Min time: {min_row['time']}s @ n_block={min_row['n_block']}, n_thread_per_block={min_row['n_thread_per_block']}, method={min_row['method']}")
+
+    ax.set_xlabel('n_block')
+    ax.set_ylabel('n_thread_per_block')
+    ax.set_zlabel('time')
+    ax.set_title('Caso a.3 - Tempo rispetto a n_block e n_thread_per_block')
+    plt.savefig("plots/metrics_a3.png")
+    plt.close()
+
 
 def main():
-    print("Caricamento file CSV in corso...")
-    case_data = load_csv_by_case()
+    print("Caricamento CSV...")
+    grouped = group_files_by_case()
 
-    print("Generazione grafici per tutti i casi...")
-    for case_tag in ['a1', 'a2', 'b', 'c', 'd']:
-        print(f" - Caso {case_tag}")
-        plot_case_group(case_tag, case_data[case_tag])
+    for case_tag, file_list in grouped.items():
+        if not file_list:
+            continue
+        print(f"Analisi per caso {case_tag} con {len(file_list)} CSV")
+        dfs = [pd.read_csv(f) for f in file_list]
 
-    print("Generazione grafico 3D per il caso a.3")
-    plot_case_a3_3d(case_data['a3'])
+        if case_tag == 'a3':
+            plot_case_a3(dfs)
+        else:
+            plot_case_group(case_tag, dfs)
 
-    print("Analisi completata. Grafici salvati in 'plots/'.")
 
 if __name__ == "__main__":
     main()
