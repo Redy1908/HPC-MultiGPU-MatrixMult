@@ -25,15 +25,16 @@ Sviluppare un’applicazione per il prodotto tra matrici su cluster multi-nodo e
 \end{enumerate}
 
 \section{Implementazione}
-% $$C=C+AB$$
+In un ambiente multi-nodo e multi-GPU, il prodotto tra matrici può essere articolato in due livelli distinti ma interconnessi.
 
-In un ambiente multi-nodo e multi-GPU, il problema si divide in due livelli: a un livello più alto bisogna capire come decomporre il prodotto globalmente tra i diversi processi, a un livello più basso invece abbiamo l'esecuzione del prodotto localmente all'interno di un nodo utilizzando le gpu a disposizione.
+A un livello più alto è necessario decomporre il problema a livello globale, ovvero suddividere le matrici da moltiplicare in blocchi che possano essere assegnati in modo efficiente ai diversi nodi del cluster, tenendo conto del bilanciamento del carico, della minimizzazione della comunicazione tra nodi e dell'architettura del sistema.
+
+A un livello più basso, invece, entra in gioco l’effettiva esecuzione del prodotto tra i blocchi locali di matrici all’interno di ciascun nodo, sfruttando le GPU a disposizione. Volendo si potrebbe suddividere questo livello in ulteriori due parti: il partizionamento delle matrice tra le diverse GPU e l'esecuzione dei calcoli reali.
 
 \subsection{Processi}
 Il prodotto tra matrici viene eseguito a livello di processi tramite SUMMA (Scalable Universal Matrix Multiplication Algorithm)\cite{SUMMA}.
-Suddividiamo i diversi processi una griglia bidimensionale $p \times p$\footnote{In generale l'algoritmo permetterebbe di avere qualsiasi griglia $p \times q$, ma è stato preso in considerazione il caso più semplice.}.
 
-L'algoritmo funziona a fasi, in cui per ognuna i processo collaborano per combinare blocchi specifici delle matrici $A$ e $B$. Ogni riga di processori condivide tra sé il blocco di $A$ rilevante per quella fase, mentre ogni colonna fa lo stesso con un blocco di $B$. Questo avviene tramite un’operazione di broadcast.
+Suddividiamo i diversi processi una griglia bidimensionale $p \times p$\footnote{In generale l'algoritmo permetterebbe di avere qualsiasi griglia $p \times q$, ma è stato preso in considerazione il caso più semplice.}. L'algoritmo funziona a fasi, in cui per ognuna i processi collaborano per combinare blocchi specifici delle matrici $A$ e $B$. Ogni riga di processi condivide tra sé il blocco di $A$ rilevante per quella fase, mentre ogni colonna fa lo stesso con un blocco di $B$. Questo avviene tramite un’operazione di broadcast.
 
 Una volta ricevuti i blocchi necessari, ogni processo può calcolare una parte del prodotto parziale della matrice $C$, sommando il risultato a quello già accumulato. Ripetendo questa operazione per un numero di fasi pari alla dimensione della griglia (cioè $p^2$ volte), alla fine ogni processo avrà calcolato il suo blocco completo della matrice risultato $C$.
 
@@ -93,7 +94,16 @@ Tuttavia, CUDA offre anche varianti asincrone delle diverse funzioni e la possib
 % TODO: aggiungere pseudocodice
 
 \subsubsection{Kernel}
-Utilizzo della shared memory. Utilizzo di warp. Memory coalescing. Access vectorization.
+Per quanto riguarda l'implementazione della funzione kernel che esegue il prodotto sulla GPU, l'idea è che ogni thread avviato calcoli il prodotto scalare delle righe di $A$ e delle colonne di $B$ corrispondenti.
+
+% utilizzo della shared memory
+La GPU presenta, oltre alla memoria globale, anche una regione di memoria di dimensioni molto minori ma collocata direttamente sul chip e per questo molto più veloce. Possiamo sfruttarla per caricare un blocco di $A$ e di $B$ dalla memoria globale ed eseguire quanto più lavoro possibile su di essi.
+
+% Tile quantization
+Bisogna gestire il caso in cui i thread avviati siano minori delle dimensioni delle matrici, quindi ogni thread potrebbe dover calcolare più celle.
+Pur assicurandoci che non siano effettuati accessi di memoria non validi, tutti i blocchi eseguiranno lo stesso numero di operazioni. Il numero di operazioni eseguite realmente potrebbe essere molte più grande di quante ne siano effettivamente necessarie. Pertanto l'efficienza massima si ha quando le dimensioni della matrice sono divisibili per le dimensioni della griglia.
+
+\subsubsection{cuBLAS}
 
 \section{Analisi}
 
