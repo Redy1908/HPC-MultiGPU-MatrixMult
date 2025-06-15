@@ -183,9 +183,7 @@ void phpc_gemm_cuda(const double *a, int lda, const double *b, int ldb, double *
    * -------------------------
    */
 
-  int dev_m = m / gpu_count;
   int dev_n = n / gpu_count;
-  int dev_k = k / gpu_count;
   dim3 grid_size(grid_width, grid_height, 1);
   dim3 block_size(block_width, block_width, 1);
 
@@ -194,30 +192,26 @@ void phpc_gemm_cuda(const double *a, int lda, const double *b, int ldb, double *
   double **dev_buffers_c = (double **)malloc(gpu_count * sizeof(double *));
   cudaStream_t *streams = (cudaStream_t *)malloc(gpu_count * sizeof(cudaStream_t));
 
-  double alpha = 1, beta = 1;
+  int launched_kernels = 0;
 
   for (int gpu = 0; gpu < gpu_count; gpu++) {
     cudaSetDevice(gpu);
+
     cudaStreamCreate(&(streams[gpu]));
 
-    cudaMallocAsync(&(dev_buffers_a[gpu]), dev_m * k * sizeof(double), streams[gpu]);
+    launched_kernels++;
+
+    cudaMallocAsync(&(dev_buffers_a[gpu]), m * k * sizeof(double), streams[gpu]);
     cudaMallocAsync(&(dev_buffers_b[gpu]), k * dev_n * sizeof(double), streams[gpu]);
     cudaMallocAsync(&(dev_buffers_c[gpu]), m * dev_n * sizeof(double), streams[gpu]);
 
+    /* copy from host to device */
+    cudaMemcpy2DAsync(dev_buffers_a[gpu], k * sizeof(double), a, lda * sizeof(double), k * sizeof(double), m, cudaMemcpyHostToDevice, streams[gpu]);
     cudaMemcpy2DAsync(dev_buffers_b[gpu], dev_n * sizeof(double), b + dev_n * gpu, ldb * sizeof(double), dev_n * sizeof(double), k, cudaMemcpyHostToDevice, streams[gpu]);
     cudaMemcpy2DAsync(dev_buffers_c[gpu], dev_n * sizeof(double), c + dev_n * gpu, ldc * sizeof(double), dev_n * sizeof(double), m, cudaMemcpyHostToDevice, streams[gpu]);
 
-    for (int row = 0; row < gpu_count; row++) {
-      int offset_a = lda * dev_m * row;
-      int offset_c = dev_m * dev_n * row;
-      cudaMemcpy2DAsync(dev_buffers_a[gpu], k * sizeof(double), a + offset_a, lda * sizeof(double), k * sizeof(double), dev_m, cudaMemcpyHostToDevice, streams[gpu]);
-
-      for (int step = 0; step < gpu_count; step++) {
-        int offset_a = dev_k * step;
-        int offset_b = dev_k * dev_n * step;
-        gemm_kernel<<<grid_size, block_size>>>(dev_buffers_a[gpu] + offset_a, dev_buffers_b[gpu] + offset_b, dev_buffers_c[gpu] + offset_c, dev_m, dev_n, dev_k);
-      }
-    }
+    /* perform computation */
+    gemm_kernel<<<grid_size, block_size, required_shared_memory, streams[gpu]>>>(dev_buffers_a[gpu], dev_buffers_b[gpu], dev_buffers_c[gpu], m, dev_n, k);
 
     /* copy result from device to host */
     cudaMemcpy2DAsync(c + dev_n * gpu, ldc * sizeof(double), dev_buffers_c[gpu], dev_n * sizeof(double), dev_n * sizeof(double), m, cudaMemcpyDeviceToHost, streams[gpu]);
@@ -227,7 +221,7 @@ void phpc_gemm_cuda(const double *a, int lda, const double *b, int ldb, double *
     cudaFreeAsync(dev_buffers_a[gpu], streams[gpu]);
   }
 
-  for (int gpu = 0; gpu < gpu_count; gpu++) {
+  for (int gpu = 0; gpu < launched_kernels; gpu++) {
     cudaSetDevice(gpu);
     cudaStreamSynchronize(streams[gpu]);
     cudaStreamDestroy(streams[gpu]);
