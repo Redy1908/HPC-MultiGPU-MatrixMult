@@ -7,6 +7,29 @@
 \usepackage{algpseudocode}
 \usepackage[table]{xcolor}
 \usepackage{minted}
+\usepackage{amsmath}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{graphicx}
+
+\lstset{
+    language=C++,
+    basicstyle=\ttfamily\small,
+    keywordstyle=\color{blue},
+    commentstyle=\color{gray},
+    stringstyle=\color{red},
+    numbers=left,
+    numberstyle=\tiny\color{gray},
+    stepnumber=1,
+    numbersep=10pt,
+    tabsize=2,
+    showspaces=false,
+    showstringspaces=false,
+    breaklines=true,
+    frame=single,
+    backgroundcolor=\color{lightgray},
+    captionpos=b
+}
 
 \title{Report PHPC}
 \author{Pierluigi Supino \and Rodolfo Diana \and Salvatore Di Gennaro}
@@ -94,14 +117,113 @@ Tuttavia, CUDA offre anche varianti asincrone delle diverse funzioni e la possib
 % TODO: aggiungere pseudocodice
 
 \subsubsection{Kernel}
-Per quanto riguarda l'implementazione della funzione kernel che esegue il prodotto sulla GPU, l'idea è che ogni thread avviato calcoli il prodotto scalare delle righe di $A$ e delle colonne di $B$ corrispondenti.
 
-% utilizzo della shared memory
-La GPU presenta, oltre alla memoria globale, anche una regione di memoria di dimensioni molto minori ma collocata direttamente sul chip e per questo molto più veloce. Possiamo sfruttarla per caricare un blocco di $A$ e di $B$ dalla memoria globale ed eseguire quanto più lavoro possibile su di essi.
+La moltiplicazione tra una matrice M $(I\times{J})$ e una matrice N $(J\times{K})$ produce una matice P $(I\times{K})$. Ognuno degli elementi della matice $P$ è il prodotto scalare tra una riga di $M$ e una colonna di $N$. Riferendoci agli elementi di $P$ con $P_{\text{row}, \text{col}}$ avremo:
 
-% Tile quantization
-Bisogna gestire il caso in cui i thread avviati siano minori delle dimensioni delle matrici, quindi ogni thread potrebbe dover calcolare più celle.
-Pur assicurandoci che non siano effettuati accessi di memoria non validi, tutti i blocchi eseguiranno lo stesso numero di operazioni. Il numero di operazioni eseguite realmente potrebbe essere molte più grande di quante ne siano effettivamente necessarie. Pertanto l'efficienza massima si ha quando le dimensioni della matrice sono divisibili per le dimensioni della griglia.
+\[
+P_{\text{row}, \text{col}} = \sum_{k=0}^{\text{Width}-1} M_{\text{row}, k} \cdot N_{k, \text{col}}
+\]
+
+Ovvero per calcolare ad esempio l'elemento $P_{1, 5}$:
+
+\[
+P_{1,5} = M_{1,0} \cdot N_{0,5} + M_{1,1} \cdot N_{1,5} + M_{1,2} \cdot N_{2,5} + \ldots + M_{1,\text{width}-1} \cdot N_{\text{width}-1,5}
+\]
+
+Per implementare la moltiplicazione tra matrici usando CUDA, possiamo mappare i thread nelle griglia agli elementi della matrice di output $P$. In questo modo, ogni thread sarà responsabile del calcolo di un elemento di $P$. Gli indici di colonna per gli elemendi di $P$ sarano:
+
+\[
+\begin{aligned}
+\text{row} &= \text{blockIdx.y} \times \text{blockDim.y} + \text{threadIdx.y} \\
+\text{col} &= \text{blockIdx.x} \times \text{blockDim.x} + \text{threadIdx.x}
+\end{aligned}
+\]
+
+Con questo mapping uno a uno il nostro kernel sarà:
+
+\begin{lstlisting}[caption={Kernel CUDA con memoria globale}, label={lst:1}]
+__global__ void MatrixMulKernel(float* M, float* N,
+                                float* P, int Width) {
+    int row = blockIdx.y*blockDim.y+threadIdx.y;
+    int col = blockIdx.x*blockDim.x+threadIdx.x;
+    if ((row < Width) && (col < Width)) {
+        float Pvalue = 0;
+        for (int k = 0; k < Width; ++k) {
+            Pvalue += M[row*Width+k]*N[k*Width+col];
+        }
+        P[row*Width+col] = Pvalue;
+    }
+}
+\end{lstlisting}
+
+\newpage
+
+La Figura~\ref{fig:1}, mostra come viene suddivisa la matrice $P$ ($4\times{4}$) in una griglia di blocchi $2\times{2}$ con blocchi $2\times{2}$. Mentre la Figura~\ref{fig:2} ne mostra una parte dell'esecuzione.
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}[b]{0.45\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{imgs/matrix_division.png}
+        \caption{Divisione della matrice in una griglia di blocchi}
+        \label{fig:1}
+    \end{minipage}
+    \hspace{0.05\textwidth}
+    \begin{minipage}[b]{0.45\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{imgs/execution1.png}
+        \caption{Esecuzione del kernel}
+        \label{fig:2}
+    \end{minipage}
+\end{figure}
+
+Questo è un approccio basilare con ampi margini di miglioramento, infatti in un contesto CUDA è fondamentale ragionare tenendo in considerazione le differenti prestazioni delle differenti memorie: la memoria globale è grande ma lenta di controparte la memoria condivisa è piccola ma veloce. Una stategia decisamente migliore rispeetto a quella presentata in precedenza è quella di partizionare i dati in sottoinsiemi chiamati \textit{tiles} in modo tale che ognuna di essa entri nella memoria condivisa con un importante vincolo, la computazione del kernel sulla singola tile può essere fatta indipendentemente dalle altre. Tornando all' esempio precedente mostriamo gli accessi alla memoria globale generati dal'esempio in Figura~\ref{fig:2}:
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.6\textwidth]{imgs/memory_access.png}
+    \caption{Accessi alla memoria globale}
+    \label{fig:3}
+\end{figure}
+
+Nella Figura~\ref{fig:3} possiamo notare come gli stessi elementi vengano letti dalla lenta memoria globale in diversi step dell'esecuzione. In generale data la dimensione dei blocchi $width\times{width}$ ogni elemento delle matrici $M$ ed $N$ è letto dalla memoria globale $width$ volte. L'idea è quindi quella di far collaborare i threads per caricare in memoria condivisa anticipatamente tutti i dati per poi procedere allo sviluppo dei calcoli cosi facendo stiamo riducendo di $\frac{1}{width}$ gli accessi alla memoria. La Figura~\ref{fig:1} mostra gli accessi alla memoria per questo approccio.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.6\textwidth]{imgs/memory_access1.png}
+    \caption{Accessi alla memoria globale e caricamento in memoria condivisa}
+    \label{fig:4}
+\end{figure}
+
+Il Listing~\ref{lst:2} mostra il kernel con l'approccio tiling e memoria condivisa.
+
+\begin{lstlisting}[caption={Kernel CUDA con tiling e memoria condivisa}, label={lst:2}]
+#define TILE_WIDTH 16
+__global__ void matrixMulKernel(float* M, float* N, float* P, int Width) {
+    __shared__ float Mds[TILE_WIDTH][TILE_WIDTH];
+    __shared__ float Nds[TILE_WIDTH][TILE_WIDTH];
+
+    int bx = blockIdx.x; int by = blockIdx.y;
+    int tx = threadIdx.x; int ty = threadIdx.y;
+
+    int Row = by * TILE_WIDTH + ty;
+    int Col = bx * TILE_WIDTH + tx;
+
+    float Pvalue = 0;
+    for (int ph = 0; ph < Width/TILE_WIDTH; ++ph) {
+        Mds[ty][tx] = M[Row*Width + ph*TILE_WIDTH + tx];
+        Nds[ty][tx] = N[(ph*TILE_WIDTH + ty)*Width + Col];
+        __syncthreads();
+
+        for (int k = 0; k < TILE_WIDTH; ++k)
+            Pvalue += Mds[ty][k] * Nds[k][tx];
+        __syncthreads();
+    }
+    P[Row*Width + Col] = Pvalue;
+}
+\end{lstlisting}
+
+TODO kernel con grid stride loop
 
 \subsubsection{cuBLAS}
 
