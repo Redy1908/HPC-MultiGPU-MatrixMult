@@ -65,7 +65,7 @@ for csv_file_path in "$CSV_FILES_DIR"/*.csv; do
 #SBATCH --gpus-per-task=${NGPU}
 #SBATCH --cpus-per-task=1
 #SBATCH --mem-per-cpu="5G"
-#SBATCH --time=00:20:00
+#SBATCH --time=00:10:00
 #SBATCH --output=logs/output_${JOB_NAME_SUFFIX}.log
 #SBATCH --error=logs/error_${JOB_NAME_SUFFIX}.log
 #SBATCH --job-name=mat_mul
