@@ -11,6 +11,8 @@
 \usepackage{listings}
 \usepackage{xcolor}
 \usepackage{graphicx}
+\usepackage{hyperref}
+\DeclareMathOperator{\lcm}{lcm}
 
 \lstset{
     language=C++,
@@ -57,27 +59,64 @@ A un livello più basso, invece, entra in gioco l’effettiva esecuzione del pro
 \subsection{Processi}
 Il prodotto tra matrici viene eseguito a livello di processi tramite SUMMA (Scalable Universal Matrix Multiplication Algorithm)\cite{SUMMA}.
 
-Suddividiamo i diversi processi una griglia bidimensionale $p \times p$\footnote{In generale l'algoritmo permetterebbe di avere qualsiasi griglia $p \times q$, ma è stato preso in considerazione il caso più semplice.}. L'algoritmo funziona a fasi, in cui per ognuna i processi collaborano per combinare blocchi specifici delle matrici $A$ e $B$. Ogni riga di processi condivide tra sé il blocco di $A$ rilevante per quella fase, mentre ogni colonna fa lo stesso con un blocco di $B$. Questo avviene tramite un’operazione di broadcast.
+Disponiamo i diversi processi una griglia logica bidimensionale $r \times c$ e sia $l=\lcm(r, c)$. e assegniamo loro delle sottomatrici nel seguente modo:
+% suddivisione
+$$
+    A=
+    \begin{pmatrix}
+        A_{00}     & \cdots & A_{0(c-1)}     \\
+        \vdots     & \ddots & \vdots         \\
+        A_{(r-1)0} & \cdots & A_{(r-1)(c-1)}
+    \end{pmatrix}
+$$
 
-Una volta ricevuti i blocchi necessari, ogni processo può calcolare una parte del prodotto parziale della matrice $C$, sommando il risultato a quello già accumulato. Ripetendo questa operazione per un numero di fasi pari alla dimensione della griglia (cioè $p^2$ volte), alla fine ogni processo avrà calcolato il suo blocco completo della matrice risultato $C$.
+$$
+    B=
+    \begin{pmatrix}
+        A_{00}     & \cdots & A_{0(c-1)}     \\
+        \vdots     & \ddots & \vdots         \\
+        A_{(r-1)0} & \cdots & A_{(r-1)(c-1)}
+    \end{pmatrix}
+$$
 
-Una volta eseguite tutte le operazioni, resta da raccogliere le diverse sottomatrici e ricomporle. In generale, sono disponibili diversi approcci a seconda di come sia necessario il risultato. In questo caso è stato deciso, per semplicità, che solo il processo 0 debba avere la matrice finale completa.
+$$
+    C_{ij}=\sum_{l=0}^{c-1}A_{ij}B_{ij}
+$$
 
-Nel nostro algoritmo si suppone che le matrici $A$, $B$ e $C$ date in input a ogni processo siano delle dimensioni originali. Per eseguire il broadcast, sono stati creati dei tipi derivati appositi per tenere in considerazione gli spazi di memoria che intercorrono tra una riga e l'altra dei blocchi da inviare.
+Nel nostro algoritmo si suppone che le matrici in input siano allocate come array contigui \textit{row-major} di dimensione $n^2$ e che contengano già al loro interno (almeno) i dati del blocco assegnato al processo chiamante.
+L'algoritmo funziona a fasi, in cui per ognuna i processi collaborano per combinare blocchi specifici delle matrici $A$ e $B$. Ogni riga di processi condivide tra sé il blocco di $A$ rilevante per quella fase, mentre ogni colonna fa lo stesso con un blocco di $B$. Questo avviene tramite un'operazione di broadcast dello standard di comunicazione \textit{Message Passing Interface} (MPI)\footnote{\url{https://docs.open-mpi.org/en/v5.0.x/man-openmpi/man3/MPI_Bcast.3.html}}. Sono stati creati dei tipi derivati appositi per tenere in considerazione gli spazi di memoria che intercorrono tra una riga e l'altra dei blocchi da inviare\footnote{\url{https://docs.open-mpi.org/en/v5.0.x/man-openmpi/man3/MPI_Type_vector.3.html}}.
+
 \begin{table}[h]
     \center
-    \begin{tabular}{|l|l|l|l|}
+    \begin{tabular}{|c|c|c|c|}
         \hline
         \cellcolor{yellow}0 & \cellcolor{yellow}1 & 2  & 3  \\ \hline
         \cellcolor{yellow}4 & \cellcolor{yellow}5 & 6  & 7  \\ \hline
         8                   & 9                   & 10 & 11 \\ \hline
         12                  & 13                  & 14 & 15 \\ \hline
     \end{tabular}
-    \begin{tabular}{|l|l|l|l|l|l|l|l|l}
+    \begin{tabular}{|c|c|c|c|c|c|c|c|c}
         \hline
         \cellcolor{yellow}0 & \cellcolor{yellow}1 & 2 & 3 & \cellcolor{yellow}4 & \cellcolor{yellow}5 & 6 & 7 & \dots \\ \hline
     \end{tabular}
+    % \caption{Rappresentazione in memoria di una matrice \textit{row-major}}
 \end{table}
+
+Una volta ricevuti i blocchi necessari, ogni processo può calcolare una parte del prodotto parziale della matrice $C$, sommando il risultato a quello già accumulato. Ripetendo questa operazione per un numero di fasi pari alla dimensione della griglia, alla fine ogni processo avrà calcolato il suo blocco completo di $C$.
+
+\begin{algorithm}[h]
+    \caption{SUMMA}
+    \begin{algorithmic}
+        \State $C_{ij} \gets 0$
+        \For{$i \gets 0$ \textbf{to} $k - 1$}
+        \State broadcast $A_{ij}$ within my row
+        \State broadcast $B_{ij}$ within my column
+        \State $C_{ij} \gets C_{ij} + AB$
+        \EndFor
+    \end{algorithmic}
+\end{algorithm}
+
+Eseguite tutte le operazioni, l'ultimo passaggio consiste nel ricomporre le diverse sottomatrici dai vari processi. In generale sono disponibili diversi approcci a seconda di come sia necessario il risultato. In questo caso è stato deciso, per semplicità, che solo il processo 0 debba avere la matrice finale completa. Non è stata implementata una particolare gestione degli errori per evitare overhead nelle misurazioni dei tempi.
 
 \subsection{GPU}
 \subsubsection{Multi-GPU}
@@ -86,57 +125,68 @@ Per sfruttare al massimo le risorse disponibili, è stato necessario sviluppare 
 L'obiettivo consiste nel sovrapporre quanto più possibile il lavoro svolto dalle diverse GPU ed evitare conflitti di memoria che dovrebbero essere serializzati, in particolare la scrittura sulla matrice $C$. Un'idea naturale è partizionare quest'ultima in modo che ogni device possa eseguire le operazioni in uno spazio separato dagli altri.
 Una suddivisione semplice ma funzionale per qualsiasi numero di GPU è quella per colonne: ogni GPU effettua quindi il prodotto tra la matrice A e la ``colonna'' assegnata della matrice B.
 
-% TODO: inserire schema
+% $$
+%     B=
+%     \begin{pmatrix}
+%               &        &           \\
+%         B_{0} & \cdots & B_{n - 1} \\
+%               &        &
+%     \end{pmatrix}\\
+%     C=
+%     \begin{pmatrix}
+%               &        &           \\
+%         C_{0} & \cdots & C_{n - 1} \\
+%               &        &
+%     \end{pmatrix}
+% $$
 
-% \begin{table}[h]
-%     \begin{tabular}{|c|c|}
-%         \hline
-%               &       \\
-%         $B_0$ & $B_1$ \\
-%               &       \\ \hline
-%     \end{tabular}
-
-%     \begin{tabular}{|c|c|}
-%         \hline
-%          & \\
-%          & \\
-%          & \\ \hline
-%     \end{tabular}
-%     \begin{tabular}{|c|c|c|}
-%         \hline
-%               &       &       \\
-%         $C_0$ & \dots & $C_1$ \\
-%               &       &       \\ \hline
-%     \end{tabular}
-% \end{table}
+% $$
+%     C^i = \sum_{k=0}^{n-1} A_{k}B^i
+% $$
 
 Questo meccanismo implica, ovviamente, che l'host debba essere in grado di avviare l'esecuzione su più GPU senza dover attendere prima il completamento di una di esse.
 Un metodo sicuramente valido è creare diversi thread a livello di processo, ognuno dei quali gestisca un determinato device.
 Tuttavia, CUDA offre anche varianti asincrone delle diverse funzioni e la possibilità di gestirle tramite \textit{stream}, ovvero code di operazioni da eseguire in sequenza.
 
 % TODO: aggiungere pseudocodice
+\begin{algorithm}[h]
+    \caption{MultiGPU}
+    \begin{algorithmic}
+        % \State $C_{ij} \gets 0$
+        \For{$i \gets 0$ \textbf{to} $n - 1$}
+        \State cudaStreamCreate($s_i$)
+        \State cudaMallocAsync($dev_a$)
+        \State $C_i \gets cudaMemcpy()$
+        \State $C_{ij} \gets C_{ij} + AB$
+        \EndFor
+        \For{$i \gets 0$ \textbf{to} $n - 1$}
+        \State wait stream $i$
+        \State destroy stream $i$
+        \EndFor
+    \end{algorithmic}
+\end{algorithm}
 
 \subsubsection{Kernel}
 
-La moltiplicazione tra una matrice M $(I\times{J})$ e una matrice N $(J\times{K})$ produce una matice P $(I\times{K})$. Ognuno degli elementi della matice $P$ è il prodotto scalare tra una riga di $M$ e una colonna di $N$. Riferendoci agli elementi di $P$ con $P_{\text{row}, \text{col}}$ avremo:
+La moltiplicazione tra una matrice M $(I\times{J})$ e una matrice N $(J\times{K})$ produce una matrice P $(I\times{K})$. Ognuno degli elementi della matrice $P$ è il prodotto scalare tra una riga di $M$ e una colonna di $N$. Riferendoci agli elementi di $P$ con $P_{\text{row}, \text{col}}$ avremo:
 
 \[
-P_{\text{row}, \text{col}} = \sum_{k=0}^{\text{Width}-1} M_{\text{row}, k} \cdot N_{k, \text{col}}
+    P_{\text{row}, \text{col}} = \sum_{k=0}^{\text{Width}-1} M_{\text{row}, k} \cdot N_{k, \text{col}}
 \]
 
 Ovvero per calcolare ad esempio l'elemento $P_{1, 5}$:
 
 \[
-P_{1,5} = M_{1,0} \cdot N_{0,5} + M_{1,1} \cdot N_{1,5} + M_{1,2} \cdot N_{2,5} + \ldots + M_{1,\text{width}-1} \cdot N_{\text{width}-1,5}
+    P_{1,5} = M_{1,0} \cdot N_{0,5} + M_{1,1} \cdot N_{1,5} + M_{1,2} \cdot N_{2,5} + \ldots + M_{1,\text{width}-1} \cdot N_{\text{width}-1,5}
 \]
 
 Per implementare la moltiplicazione tra matrici usando CUDA, possiamo mappare i thread nelle griglia agli elementi della matrice di output $P$. In questo modo, ogni thread sarà responsabile del calcolo di un elemento di $P$. Gli indici di colonna per gli elemendi di $P$ sarano:
 
 \[
-\begin{aligned}
-\text{row} &= \text{blockIdx.y} \times \text{blockDim.y} + \text{threadIdx.y} \\
-\text{col} &= \text{blockIdx.x} \times \text{blockDim.x} + \text{threadIdx.x}
-\end{aligned}
+    \begin{aligned}
+        \text{row} & = \text{blockIdx.y} \times \text{blockDim.y} + \text{threadIdx.y} \\
+        \text{col} & = \text{blockIdx.x} \times \text{blockDim.x} + \text{threadIdx.x}
+    \end{aligned}
 \]
 
 Con questo mapping uno a uno il nostro kernel sarà:
