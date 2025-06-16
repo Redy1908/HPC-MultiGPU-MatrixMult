@@ -6,14 +6,16 @@
 #include "phpc_matrix_operations.cuh"
 #include "utils.cuh"
 
+#define MPI_ASSERT(check)                                                       \
+  if (!(check)) {                                                               \
+    fprintf(stderr, "Check at " __FILE__ " line %d failed: " #check, __LINE__); \
+    MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);                                    \
+  }
+
 int main(int argc, char *argv[]) {
-  int i, j, N, local_N;
-  double *A, *B, *C;
+  int i, j;
   int dims[2], period[2], coord[2], rank, size;
   double start_time, end_time;
-  int gpu_count, tile_width, grid_width, grid_height;
-  char *test_name;
-  MPI_Comm grid_comm;
 
   MPI_Init(&argc, &argv);
 
@@ -26,11 +28,11 @@ int main(int argc, char *argv[]) {
     }
     MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
   }
-  N = atoi(argv[1]);
-  tile_width = atoi(argv[2]);
-  grid_width = atoi(argv[3]);
-  grid_height = atoi(argv[4]);
-  test_name = argv[5];
+  int N = atoi(argv[1]);
+  int tile_width = atoi(argv[2]);
+  int grid_width = atoi(argv[3]);
+  int grid_height = atoi(argv[4]);
+  char *test_name = argv[5];
 
   double s = sqrt(size);
 
@@ -51,37 +53,31 @@ int main(int argc, char *argv[]) {
     MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
   }
 
+  int gpu_count;
   cudaGetDeviceCount(&gpu_count);
+  MPI_ASSERT(gpu_count > 0);
 
-  if (gpu_count <= 0) {
-    if (rank == 0) {
-      fprintf(stderr, "Error: No CUDA-capable devices found.\n");
-    }
-    MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
-  }
-
-  local_N = N / dims[0];
-
-  if (local_N % gpu_count != 0) {
-    if (rank == 0) {
-      fprintf(stderr, "Error: Local matrix dimension per rank (%d) must be divisible by gpu_count (%d).\n", local_N, gpu_count);
-    }
-    MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
-  }
+  int local_N = N / dims[0];
+  MPI_ASSERT(local_N % gpu_count == 0);
 
   period[0] = 1;
   period[1] = 1;
+  MPI_Comm grid_comm;
   MPI_Cart_create(MPI_COMM_WORLD, 2, dims, period, 0, &grid_comm);
-
-  A = (double *)malloc(N * N * sizeof(double));
-  B = (double *)malloc(N * N * sizeof(double));
-  C = (double *)malloc(N * N * sizeof(double));
-
   MPI_Cart_coords(grid_comm, rank, 2, coord);
+
+  double *A = (double *)malloc(N * N * sizeof(double));
+  double *B = (double *)malloc(N * N * sizeof(double));
+  double *C = (double *)malloc(N * N * sizeof(double));
+
+  MPI_ASSERT(A != NULL);
+  MPI_ASSERT(B != NULL);
+  MPI_ASSERT(C != NULL);
 
   // ==================================================
   // Test di correttezza
   // ==================================================
+  // FIXME: don't need to run this test every time once we estabilished it works
   if (rank == 0) {
     printf("\nInitializing matrix A and B to 2.0, matrix C to 0.0...\n");
   }
@@ -98,8 +94,6 @@ int main(int argc, char *argv[]) {
   }
 
   phpc_gemm_summa_cuda(grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, tile_width);
-
-  MPI_Barrier(grid_comm);
 
   if (rank == 0) {
     printf("Checking correctness...\n");
@@ -149,7 +143,6 @@ int main(int argc, char *argv[]) {
     for (j = 0; j < N; j++) {
       *(A + i * N + j) = (double)rand() / RAND_MAX;
       *(B + i * N + j) = (double)rand() / RAND_MAX;
-      *(C + i * N + j) = 0.0;
     }
   }
 
@@ -161,7 +154,7 @@ int main(int argc, char *argv[]) {
   // ==================================================
   // TEST Iterative
   // ==================================================
-  MPI_Barrier(MPI_COMM_WORLD);
+  // FIXME: don't need to run this test every time if the only thing that changes is the matrices size
   if (rank == 0) {
     printf("  Running iterative test...\n");
     memset(C, 0, N * N * sizeof(double));
@@ -176,32 +169,30 @@ int main(int argc, char *argv[]) {
   // ==================================================
   // Test SUMMA CUDA
   // ==================================================
-  MPI_Barrier(MPI_COMM_WORLD);
   if (rank == 0) printf("  Running SUMMA CUDA test...\n");
   memset(C, 0, N * N * sizeof(double));
+  MPI_Barrier(MPI_COMM_WORLD);
 
   start_time = get_cur_time();
   phpc_gemm_summa_cuda(grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, tile_width);
   end_time = get_cur_time() - start_time;
 
-  log_to_csv(csv_file, N, size, gpu_count, grid_width * grid_height, tile_width * tile_width, "SUMMA_CUDA", end_time);
+  if (rank == 0)
+    log_to_csv(csv_file, N, size, gpu_count, grid_width * grid_height, tile_width * tile_width, "SUMMA_CUDA", end_time);
 
   // ==================================================
   // Test SUMMA CUBLAS with the current tile width and grid size
   // ==================================================
-  MPI_Barrier(MPI_COMM_WORLD);
   if (rank == 0) printf("  Running SUMMA CUBLAS test...\n");
   memset(C, 0, N * N * sizeof(double));
+  MPI_Barrier(MPI_COMM_WORLD);
 
   start_time = get_cur_time();
   phpc_gemm_summa_cublas(grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, tile_width);
   end_time = get_cur_time() - start_time;
 
-  log_to_csv(csv_file, N, size, gpu_count, grid_width * grid_height, tile_width * tile_width, "SUMMA_CUBLAS", end_time);
-
-  MPI_Barrier(MPI_COMM_WORLD);
-
   if (rank == 0) {
+    log_to_csv(csv_file, N, size, gpu_count, grid_width * grid_height, tile_width * tile_width, "SUMMA_CUBLAS", end_time);
     fclose(csv_file);
     printf("\n  All tests completed.\n\n");
   }
