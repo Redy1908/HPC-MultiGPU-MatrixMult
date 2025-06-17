@@ -307,7 +307,7 @@ if (Row < Width && Col < Width)
     P[Row*Width + Col] = Pvalue;
 \end{lstlisting}
 
-Il nostro scopo era quello di testare l'andamento delle prestazioni al variare del numero di thread e processi questo per quanto riguarda il kernel ne comporta l'adattamento in modo tale che un qualsiasi numero di thread (anche solo 1) possa effettuare in autonomia l'intero calcolo. Il Listing~\ref{lst:4} mostra questo adattamento con un grid-stride-loop.
+Il nostro scopo era quello di testare l'andamento delle prestazioni al variare del numero di thread e processi questo per quanto riguarda il kernel ne comporta l'adattamento in modo tale che un qualsiasi numero di thread (anche solo 1) possa effettuare in autonomia l'intero calcolo. Il Listing~\ref{lst:4} mostra questo adattamento con un grid-stride-loop. Si noti anche la definizione dinamica della memoria condivisa, in particolare viene usato 1 singolo array \textit{shared\_mem} la cui dimensione sarà uguale a $2\times{TILE\_WIDTH}\times{sizeof(double)}$ ovvero stiamo allocando lo spazio in memoria condivisa per salvare in modo contiguo nello stesso array le $2$ tile correnti da moltiplicare. Questo valore per assicurare le massime prestazioni dovrà essere $\leq cudaDevAttrMaxSharedMemoryPerBlock$ ovvero il limite hardware imposto dall'architettura della GPU che si sta usando.
 
 \begin{lstlisting}[caption={Kernel CUDA generalizzato con tiling dinamico}, label={lst:4}]
 __global__ void matrixMulKernel(double *A, double *B, double *C, int M, int N, int K) {
