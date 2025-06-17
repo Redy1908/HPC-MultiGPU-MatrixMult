@@ -184,7 +184,7 @@ Ovvero per calcolare ad esempio l'elemento $P_{1, 5}$:
     P_{1,5} = M_{1,0} \cdot N_{0,5} + M_{1,1} \cdot N_{1,5} + M_{1,2} \cdot N_{2,5} + \ldots + M_{1,\text{width}-1} \cdot N_{\text{width}-1,5}
 \]
 
-Per implementare la moltiplicazione tra matrici usando CUDA, possiamo mappare i thread nelle griglia agli elementi della matrice di output $P$. In questo modo, ogni thread sarà responsabile del calcolo di un elemento di $P$. Gli indici di colonna per gli elemendi di $P$ sarano:
+Per implementare la moltiplicazione tra matrici usando CUDA, possiamo mappare i thread nelle griglia agli elementi della matrice di output $P$. In questo modo, ogni thread sarà responsabile del calcolo di un elemento di $P$. Gli indici di colonna per gli elementi di $P$ sarano:
 
 \[
     \begin{aligned}
@@ -231,7 +231,7 @@ La Figura~\ref{fig:1}, mostra come viene suddivisa la matrice $P$ ($4\times{4}$)
     \end{minipage}
 \end{figure}
 
-Questo è un approccio basilare con ampi margini di miglioramento, infatti in un contesto CUDA è fondamentale ragionare tenendo in considerazione le differenti prestazioni delle differenti memorie: la memoria globale è grande ma lenta di controparte la memoria condivisa è piccola ma veloce. Una stategia decisamente migliore rispeetto a quella presentata in precedenza è quella di partizionare i dati in sottoinsiemi chiamati \textit{tiles} in modo tale che ognuna di essa entri nella memoria condivisa con un importante vincolo, la computazione del kernel sulla singola tile può essere fatta indipendentemente dalle altre. Tornando all' esempio precedente mostriamo gli accessi alla memoria globale generati dal'esempio in Figura~\ref{fig:2}:
+Questo è un approccio basilare con ampi margini di miglioramento, infatti in un contesto CUDA è fondamentale ragionare tenendo in considerazione le differenti prestazioni delle differenti memorie: la memoria globale è grande ma lenta di controparte la memoria condivisa è piccola ma veloce. Una strategia decisamente migliore rispetto a quella presentata in precedenza è quella di partizionare i dati in sottoinsiemi chiamati \textit{tiles} in modo tale che ognuna di essa entri nella memoria condivisa con un importante vincolo, la computazione del kernel sulla singola tile può essere fatta indipendentemente dalle altre. Tornando all' esempio precedente mostriamo gli accessi alla memoria globale generati dal'esempio in Figura~\ref{fig:2}:
 
 \begin{figure}[H]
     \centering
@@ -277,7 +277,91 @@ __global__ void matrixMulKernel(float* M, float* N, float* P, int Width) {
 }
 \end{lstlisting}
 
-TODO kernel con grid stride loop
+\newpage
+
+Il Listing~\ref{lst:2} nonostante ottimizzi l'uso delle memorie non funzionerebbe con matrici la cui $widht$ non sia un multiplo di $TILE\_WIDHT$ nel Listing~\ref{lst:3} è mostrata la soluzione approssimando per eccesso la divisione per $TILE\_WIDTH$ e riempendo con degli $0$ le parti di tile che non vanno effettivamente utilizzate
+
+\begin{lstlisting}[caption={Kernel CUDA con gestione dei bordi e tiling}, label={lst:3}]
+float Pvalue = 0;
+for (int ph = 0; ph < ceil(Width/(float)TILE_WIDTH); ++ph) {
+
+    if ((Row < Width) && (ph*TILE_WIDTH+tx) < Width)
+        Mds[ty][tx] = M[Row*Width + ph*TILE_WIDTH + tx];
+    else
+        Mds[ty][tx] = 0.0f;
+
+    if ((ph*TILE_WIDTH+ty < Width) && (Col < Width))
+        Nds[ty][tx] = N[(ph*TILE_WIDTH + ty)*Width + Col];
+    else
+        Nds[ty][tx] = 0.0f;
+
+    __syncthreads();
+
+    for (int k = 0; k < TILE_WIDTH; ++k)
+        Pvalue += Mds[ty][k] * Nds[k][tx];
+
+    __syncthreads();
+}
+
+if (Row < Width && Col < Width)
+    P[Row*Width + Col] = Pvalue;
+\end{lstlisting}
+
+Il nostro scopo era quello di testare l'andamento delle prestazioni al variare del numero di thread e processi questo per quanto riguarda il kernel ne comporta l'adattamento in modo tale che un qualsiasi numero di thread (anche solo 1) possa effettuare in autonomia l'intero calcolo. Il Listing~\ref{lst:4} mostra questo adattamento con un grid-stride-loop.
+
+\begin{lstlisting}[caption={Kernel CUDA generalizzato con tiling dinamico}, label={lst:4}]
+__global__ void matrixMulKernel(double *A, double *B, double *C, int M, int N, int K) {
+    extern __shared__ double shared_mem[];
+
+    int tile_width = blockDim.x;
+
+    double *s_A = (double *)shared_mem;
+    double *s_B = (double *)shared_mem + tile_width * tile_width;
+
+    int tx = threadIdx.x;
+    int ty = threadIdx.y;
+
+    int num_tiles_N = ceil((double)N / tile_width);
+    int num_tiles_M = ceil((double)M / tile_width);
+    int total_tiles = num_tiles_M * num_tiles_N;
+
+    int block_id_1d = blockIdx.y * gridDim.x + blockIdx.x;
+    int total_blocks = gridDim.x * gridDim.y;
+
+    for (int tile_id = block_id_1d; tile_id < total_tiles; tile_id += total_blocks) {
+        int by_tile = tile_id / num_tiles_N;
+        int bx_tile = tile_id % num_tiles_N;
+
+        int global_row = by_tile * tile_width + ty;
+        int global_col = bx_tile * tile_width + tx;
+
+        double c_value = 0.0;
+        int phases = (K + tile_width - 1) / tile_width;
+
+        for (int phase = 0; phase < phases; ++phase) {
+            if ((global_row < M) && (phase * tile_width + tx < K))
+                s_A[ty * tile_width + tx] = A[global_row * K + phase * tile_width + tx];
+            else
+                s_A[ty * tile_width + tx] = 0.0;
+
+            if ((phase * tile_width + ty < K) && (global_col < N))
+                s_B[ty * tile_width + tx] = B[(phase * tile_width + ty) * N + global_col];
+            else
+                s_B[ty * tile_width + tx] = 0.0;
+
+            __syncthreads();
+
+            for (int k = 0; k < tile_width; ++k)
+                c_value += s_A[ty * tile_width + k] * s_B[k * tile_width + tx];
+
+            __syncthreads();
+        }
+
+        if ((global_row < M) && (global_col < N))
+            C[global_row * N + global_col] = c_value;
+    }
+}
+\end{lstlisting}
 
 \subsubsection{cuBLAS}
 In alternativa a scrivere le proprie funzioni per il calcolo tra matrici, è disponibile la libreria cuBLAS sviluppata da NVIDIA che fornisce una versione ottimizzata per GPU delle routine BLAS (Basic Linear Algebra Subprograms), una serie standard di operazioni fondamentali in algebra lineare\footnote{\url{https://netlib.org/blas/}}. Sono inoltre disponibili diverse estensioni, tra cui cuBLASXt progettata per sfruttare più GPU contemporaneamente. Non sono necessari preparativi particolari, dato che si occupa autonomamente di allocare la memoria tra le GPU designate, distribuire il carico di lavoro tra di loro e infine recuperare i risultati sull'host\footnote{\url{https://docs.nvidia.com/cuda/cublas/index.html\#using-the-cublasxt-api}}.
@@ -290,7 +374,13 @@ Il risultato sarà quindi salvato in una matrice column-major e che quindi corri
 
 \section{Analisi}
 
+\subsection{Ambiente di test}
+
+TODO Pier: IBISCO
+
 \subsection{Configurazione dei test}
+
+TODO Pier: SCRIPT E CSV
 
 \subsection{Analisi delle misurazioni}
 
