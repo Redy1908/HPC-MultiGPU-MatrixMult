@@ -188,7 +188,7 @@ int main(int argc, char *argv[]) {
   MPI_Barrier(MPI_COMM_WORLD);
 
   start_time = get_cur_time();
-  phpc_gemm_summa_cublas(grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, tile_width);
+  phpc_gemm_summa_cublas(grid_comm, A, B, C, N, gpu_count);
   end_time = get_cur_time() - start_time;
 
   if (rank == 0) {

@@ -333,6 +333,6 @@ void phpc_gemm_summa_cuda(MPI_Comm grid_comm, const double *A, const double *B, 
   phpc_gemm_summa(phpc_gemm_cuda, grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, block_width);
 }
 
-void phpc_gemm_summa_cublas(MPI_Comm grid_comm, const double *A, const double *B, double *C, int N, int gpu_count, int grid_width, int grid_height, int block_width) {
-  phpc_gemm_summa(phpc_gemm_cublas, grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, block_width);
+void phpc_gemm_summa_cublas(MPI_Comm grid_comm, const double *A, const double *B, double *C, int N, int gpu_count) {
+  phpc_gemm_summa(phpc_gemm_cublas, grid_comm, A, B, C, N, gpu_count, 0, 0, 0);
 }
