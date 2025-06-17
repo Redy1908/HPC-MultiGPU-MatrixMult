@@ -54,117 +54,121 @@ In un ambiente multi-nodo e multi-GPU, il prodotto tra matrici può essere artic
 
 A un livello più alto è necessario decomporre il problema a livello globale, ovvero suddividere le matrici da moltiplicare in blocchi che possano essere assegnati in modo efficiente ai diversi nodi del cluster, tenendo conto del bilanciamento del carico, della minimizzazione della comunicazione tra nodi e dell'architettura del sistema.
 
-A un livello più basso, invece, entra in gioco l’effettiva esecuzione del prodotto tra i blocchi locali di matrici all’interno di ciascun nodo, sfruttando le GPU a disposizione. Volendo si potrebbe suddividere questo livello in ulteriori due parti: il partizionamento delle matrice tra le diverse GPU e l'esecuzione dei calcoli reali.
+A un livello più basso, invece, entra in gioco l’effettiva esecuzione del prodotto tra i blocchi locali di matrici all’interno di ciascun nodo, sfruttando le GPU a disposizione. Si potrebbe ulteriormente suddividere questo livello in partizionamento delle matrice tra le diverse GPU ed esecuzione dei calcoli.
 
 \subsection{Processi}
 Il prodotto tra matrici viene eseguito a livello di processi tramite SUMMA (Scalable Universal Matrix Multiplication Algorithm)\cite{SUMMA}.
-
-Disponiamo i diversi processi una griglia logica bidimensionale $r \times c$ e sia $l=\lcm(r, c)$. e assegniamo loro delle sottomatrici nel seguente modo:
-% suddivisione
+Si dispongano i diversi processi in una griglia logica bidimensionale $r \times c$ e sia $l=\lcm(r, c)$. È possibile suddividere le matrici nel seguente modo:
 $$
-    A=
+    \mathbf{A}=
     \begin{pmatrix}
-        A_{00}     & \cdots & A_{0(c-1)}     \\
-        \vdots     & \ddots & \vdots         \\
-        A_{(r-1)0} & \cdots & A_{(r-1)(c-1)}
+        \mathbf{A}_{00}     & \cdots & \mathbf{A}_{0(l-1)}     \\
+        \vdots              & \ddots & \vdots                  \\
+        \mathbf{A}_{(r-1)0} & \cdots & \mathbf{A}_{(r-1)(l-1)}
     \end{pmatrix}
 $$
 
 $$
-    B=
+    \mathbf{B}=
     \begin{pmatrix}
-        A_{00}     & \cdots & A_{0(c-1)}     \\
-        \vdots     & \ddots & \vdots         \\
-        A_{(r-1)0} & \cdots & A_{(r-1)(c-1)}
+        \mathbf{B}_{00}     & \cdots & \mathbf{B}_{0(c-1)}     \\
+        \vdots              & \ddots & \vdots                  \\
+        \mathbf{B}_{(l-1)0} & \cdots & \mathbf{B}_{(l-1)(c-1)}
     \end{pmatrix}
 $$
 
 $$
-    C_{ij}=\sum_{l=0}^{c-1}A_{ij}B_{ij}
+    \mathbf{C}=
+    \begin{pmatrix}
+        \sum_{k=0}^{l-1}\mathbf{A}_{0k}\mathbf{B}_{k0}     & \cdots & \sum_{k=0}^{l-1}\mathbf{A}_{0k}\mathbf{B}_{k(c-1)}     \\
+        \vdots                                             & \ddots & \vdots                                                 \\
+        \sum_{k=0}^{l-1}\mathbf{A}_{(r-1)k}\mathbf{B}_{k0} & \cdots & \sum_{k=0}^{l-1}\mathbf{A}_{(r-1)k}\mathbf{B}_{k(c-1)}
+    \end{pmatrix}
 $$
 
-Nel nostro algoritmo si suppone che le matrici in input siano allocate come array contigui \textit{row-major} di dimensione $n^2$ e che contengano già al loro interno (almeno) i dati del blocco assegnato al processo chiamante.
-L'algoritmo funziona a fasi, in cui per ognuna i processi collaborano per combinare blocchi specifici delle matrici $A$ e $B$. Ogni riga di processi condivide tra sé il blocco di $A$ rilevante per quella fase, mentre ogni colonna fa lo stesso con un blocco di $B$. Questo avviene tramite un'operazione di broadcast dello standard di comunicazione \textit{Message Passing Interface} (MPI)\footnote{\url{https://docs.open-mpi.org/en/v5.0.x/man-openmpi/man3/MPI_Bcast.3.html}}. Sono stati creati dei tipi derivati appositi per tenere in considerazione gli spazi di memoria che intercorrono tra una riga e l'altra dei blocchi da inviare\footnote{\url{https://docs.open-mpi.org/en/v5.0.x/man-openmpi/man3/MPI_Type_vector.3.html}}.
-
-\begin{table}[h]
-    \center
-    \begin{tabular}{|c|c|c|c|}
-        \hline
-        \cellcolor{yellow}0 & \cellcolor{yellow}1 & 2  & 3  \\ \hline
-        \cellcolor{yellow}4 & \cellcolor{yellow}5 & 6  & 7  \\ \hline
-        8                   & 9                   & 10 & 11 \\ \hline
-        12                  & 13                  & 14 & 15 \\ \hline
-    \end{tabular}
-    \begin{tabular}{|c|c|c|c|c|c|c|c|c}
-        \hline
-        \cellcolor{yellow}0 & \cellcolor{yellow}1 & 2 & 3 & \cellcolor{yellow}4 & \cellcolor{yellow}5 & 6 & 7 & \dots \\ \hline
-    \end{tabular}
-    % \caption{Rappresentazione in memoria di una matrice \textit{row-major}}
-\end{table}
-
-Una volta ricevuti i blocchi necessari, ogni processo può calcolare una parte del prodotto parziale della matrice $C$, sommando il risultato a quello già accumulato. Ripetendo questa operazione per un numero di fasi pari alla dimensione della griglia, alla fine ogni processo avrà calcolato il suo blocco completo di $C$.
+Ad ogni processo $P_{ij}$ vengono assegnati i blocchi $\mathbf{A}_{is}$ per cui $\bmod(s,l)=j$, e i blocchi $\mathbf{B}_{tj}$ per cui $\bmod(t,l)=i$. L'algoritmo si svolge in più passaggi nei quali i processi collaborano per combinare blocchi specifici. Ad ogni passo $k$, il processo che possiede il blocco $\mathbf{A}_{ik}$ lo invia alla propria riga e, analogamente, il possessore del blocco $\mathbf{B}_{kj}$ alla propria colonna.
+Una volta ricevuti i blocchi necessari, ogni processo può calcolare una parte del prodotto parziale della matrice $\mathbf{C}$, sommando il risultato a quello già accumulato. Ripetendo questa operazione, alla fine ogni processo avrà calcolato il suo blocco completo di $\mathbf{C}$.
 
 \begin{algorithm}[h]
-    \caption{SUMMA}
+    \caption{SUMMA for process $P_{ij}$}
     \begin{algorithmic}
-        \State $C_{ij} \gets 0$
-        \For{$i \gets 0$ \textbf{to} $k - 1$}
-        \State broadcast $A_{ij}$ within my row
-        \State broadcast $B_{ij}$ within my column
-        \State $C_{ij} \gets C_{ij} + AB$
+        \State $\mathbf{C}_{ij} \gets 0$
+        \State $l \gets \lcm(r,c)$
+        \For{$k \gets 0$ \textbf{to} $l - 1$}
+        \State $s \gets \bmod(k, r)$
+        \State $t \gets \bmod(k, c)$
+        \State process $P_{it}$ broadcasts $\mathbf{A}_{ik}$ to row
+        \State process $P_{sj}$ broadcasts $\mathbf{B}_{kj}$ to column
+        \State $\mathbf{C}_{ij} \gets \mathbf{C}_{ij} + \mathbf{A}_{ik}\mathbf{B}_{kj}$
         \EndFor
     \end{algorithmic}
 \end{algorithm}
 
-Eseguite tutte le operazioni, l'ultimo passaggio consiste nel ricomporre le diverse sottomatrici dai vari processi. In generale sono disponibili diversi approcci a seconda di come sia necessario il risultato. In questo caso è stato deciso, per semplicità, che solo il processo 0 debba avere la matrice finale completa. Non è stata implementata una particolare gestione degli errori per evitare overhead nelle misurazioni dei tempi.
+L'ultimo passaggio consiste nel ricomporre le diverse sottomatrici dai vari processi, risolvibile con diversi approcci a seconda di come sia necessario il risultato.
+
+\medskip Nell'implementazione attuale, per semplicità, le matrici $\mathbf{A}, \mathbf{B}$ in input devono essere dei quadrati $n \times n$ dove $n = q \cdot \lcm(r,c)$ per qualche $q \ge 1$, allocate come array contigui \textit{row-major} e contenere già al loro interno (almeno) i dati dei blocchi assegnati al processo chiamante.
+
+L'invio dei blocchi avviene tramite un'operazione di broadcast dello standard di comunicazione \textit{Message Passing Interface} (MPI)\footnote{\url{https://docs.open-mpi.org/en/v5.0.x/man-openmpi/man3/MPI_Bcast.3.html}}.
+Siccome bisogna inviare porzioni di una matrice più grande, è stato necessario creare dei tipi derivati appositi per tenere in considerazione gli spazi di memoria che intercorrono tra una riga e l'altra dei blocchi da inviare\footnote{\url{https://docs.open-mpi.org/en/v5.0.x/man-openmpi/man3/MPI_Type_vector.3.html}}.
+
+$$
+    \begin{pmatrix}
+        \color{red} x_{00} & \color{red} x_{01} & x_{02} & \cdots & x_{0n} \\
+        \color{red} x_{10} & \color{red} x_{11} & x_{12} & \cdots & x_{1n} \\
+        x_{20}             & x_{21}             & x_{22} & \cdots & x_{2n} \\
+                           &                    & \cdots &        &        \\
+    \end{pmatrix}
+$$
+
+$$
+    \begin{pmatrix}
+        \color{red} x_{00} & \color{red} x_{01} & x_{02} & \cdots & x_{0n} & \color{red} x_{10} & \color{red} x_{11} & x_{12} & \cdots
+    \end{pmatrix}
+$$
+
+Per quanto riguarda la ricomposizione di $\mathbf{C}$, è stato deciso che solo il processo 0 debba avere la matrice finale completa.
+Non è stata implementata una particolare gestione degli errori per evitare overhead nelle misurazioni dei tempi.
 
 \subsection{GPU}
 \subsubsection{Multi-GPU}
 Per sfruttare al massimo le risorse disponibili, è stato necessario sviluppare un sistema che permettesse la suddivisione del lavoro su più GPU presenti nella macchina.
 
-L'obiettivo consiste nel sovrapporre quanto più possibile il lavoro svolto dalle diverse GPU ed evitare conflitti di memoria che dovrebbero essere serializzati, in particolare la scrittura sulla matrice $C$. Un'idea naturale è partizionare quest'ultima in modo che ogni device possa eseguire le operazioni in uno spazio separato dagli altri.
-Una suddivisione semplice ma funzionale per qualsiasi numero di GPU è quella per colonne: ogni GPU effettua quindi il prodotto tra la matrice A e la ``colonna'' assegnata della matrice B.
+L'obiettivo consiste nel sovrapporre quanto più possibile il lavoro svolto dalle diverse GPU ed evitare conflitti di memoria che dovrebbero essere serializzati, in particolare la scrittura sulla matrice $\mathbf{C}$. Un'idea naturale è partizionare quest'ultima in modo che ogni device possa eseguire le operazioni in uno spazio separato dagli altri.
+Una suddivisione semplice ma funzionale per qualsiasi numero di GPU è quella per colonne: ogni GPU effettua quindi il prodotto tra la matrice $\mathbf{A}$ e la ``colonna'' assegnata della matrice $\mathbf{B}$.
 
-% $$
-%     B=
-%     \begin{pmatrix}
-%               &        &           \\
-%         B_{0} & \cdots & B_{n - 1} \\
-%               &        &
-%     \end{pmatrix}\\
-%     C=
-%     \begin{pmatrix}
-%               &        &           \\
-%         C_{0} & \cdots & C_{n - 1} \\
-%               &        &
-%     \end{pmatrix}
-% $$
-
-% $$
-%     C^i = \sum_{k=0}^{n-1} A_{k}B^i
-% $$
+$$
+    \mathbf{B}=
+    \begin{pmatrix}
+        \mathbf{B}_{0} & \cdots & \mathbf{B}_{n - 1} \\
+    \end{pmatrix}\\
+$$
+$$
+    \mathbf{C}=
+    \begin{pmatrix}
+        \mathbf{A}\mathbf{B}_0 & \cdots & \mathbf{A}\mathbf{B}_{n-1} \\
+    \end{pmatrix}
+$$
 
 Questo meccanismo implica, ovviamente, che l'host debba essere in grado di avviare l'esecuzione su più GPU senza dover attendere prima il completamento di una di esse.
 Un metodo sicuramente valido è creare diversi thread a livello di processo, ognuno dei quali gestisca un determinato device.
 Tuttavia, CUDA offre anche varianti asincrone delle diverse funzioni e la possibilità di gestirle tramite \textit{stream}, ovvero code di operazioni da eseguire in sequenza.
 
 % TODO: aggiungere pseudocodice
-\begin{algorithm}[h]
-    \caption{MultiGPU}
-    \begin{algorithmic}
-        % \State $C_{ij} \gets 0$
-        \For{$i \gets 0$ \textbf{to} $n - 1$}
-        \State cudaStreamCreate($s_i$)
-        \State cudaMallocAsync($dev_a$)
-        \State $C_i \gets cudaMemcpy()$
-        \State $C_{ij} \gets C_{ij} + AB$
-        \EndFor
-        \For{$i \gets 0$ \textbf{to} $n - 1$}
-        \State wait stream $i$
-        \State destroy stream $i$
-        \EndFor
-    \end{algorithmic}
-\end{algorithm}
+% \begin{algorithm}[h]
+%     \caption{MultiGPU}
+%     \begin{algorithmic}
+%         \For{$i \gets 0$ \textbf{to} $n - 1$}
+%         \State create stream $s_i$
+%         \State allocate memory async on device
+%         \State $C_i \gets cudaMemcpy()$
+%         \State $C_{ij} \gets C_{ij} + AB$
+%         \EndFor
+%         \For{$i \gets 0$ \textbf{to} $n - 1$}
+%         \State wait stream $i$
+%         \State destroy stream $i$
+%         \EndFor
+%     \end{algorithmic}
+% \end{algorithm}
 
 \subsubsection{Kernel}
 
