@@ -276,6 +276,13 @@ __global__ void matrixMulKernel(float* M, float* N, float* P, int Width) {
 TODO kernel con grid stride loop
 
 \subsubsection{cuBLAS}
+In alternativa a scrivere le proprie funzioni per il calcolo tra matrici, è disponibile la libreria cuBLAS sviluppata da NVIDIA che fornisce una versione ottimizzata per GPU delle routine BLAS (Basic Linear Algebra Subprograms), una serie standard di operazioni fondamentali in algebra lineare\footnote{\url{https://netlib.org/blas/}}. Sono inoltre disponibili diverse estensioni, tra cui cuBLASXt progettata per sfruttare più GPU contemporaneamente. Non sono necessari preparativi particolari, dato che si occupa autonomamente di allocare la memoria tra le GPU designate, distribuire il carico di lavoro tra di loro e infine recuperare i risultati sull'host\footnote{\url{https://docs.nvidia.com/cuda/cublas/index.html\#using-the-cublasxt-api}}.
+
+Una nota tecnica riguarda la discrepanza tra l'ordine in memoria delle matrici: cuBLAS, per rimanere conforme alle specifiche Fortran di BLAS, si aspetta che i valori siano disposti per \textit{column-major} mentre lo standard nel C è \textit{row-major}. Fortunatamente, è possibile evitare operazioni di memoria aggiuntive il fatto che i due metodi sono le rispettive trasposte e calcolare
+$$
+    \mathbf{C}^T=(\mathbf{B}\mathbf{A})^T
+$$
+Il risultato sarà quindi salvato in una matrice column-major e che quindi corrisponderà al risultato cercato leggendolo in row-major.
 
 \section{Analisi}
 
