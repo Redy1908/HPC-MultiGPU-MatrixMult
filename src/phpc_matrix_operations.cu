@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <cublasXt.h>
 #include <cublas_v2.h>
 #include <cuda_runtime.h>
 #include <math.h>
@@ -73,83 +74,19 @@ __global__ void gemm_kernel(double *A, double *B, double *C, int M, int N, int K
 }
 
 void phpc_gemm_cublas(const double *a, int lda, const double *b, int ldb, double *c, int ldc, int m, int k, int n, int gpu_count, int grid_width, int grid_height, int block_width) {
-  /**
-   * Matrix A: each gpu copies the entire matrix
-   *
-   * Matrix B: each gpu has a "column"
-   *  ________________________
-   * |       |       |       |
-   * |       |       |       |
-   * | GPU 0 |  ...  | GPU N |
-   * |       |       |       |
-   * |       |       |       |
-   * -------------------------
-   *
-   * Matrix C: each gpu has a resulting "column"
-   *  ________________________
-   * |       |       |       |
-   * |       |       |       |
-   * | GPU 0 |  ...  | GPU i |
-   * |       |       |       |
-   * |       |       |       |
-   * -------------------------
-   */
-
-  int dev_n = n / gpu_count;
-
-  double **dev_buffers_a = (double **)malloc(gpu_count * sizeof(double *));
-  double **dev_buffers_b = (double **)malloc(gpu_count * sizeof(double *));
-  double **dev_buffers_c = (double **)malloc(gpu_count * sizeof(double *));
-  cudaStream_t *streams = (cudaStream_t *)malloc(gpu_count * sizeof(cudaStream_t));
-  cublasHandle_t *handles = (cublasHandle_t *)malloc(gpu_count * sizeof(cublasHandle_t));
-
-  int launched_kernels = 0;
+  int devices[32]; /* checking for 32 devices on a single machine is more than enough */
+  cublasXtHandle_t handle;
   double alpha = 1, beta = 1;
 
-  for (int gpu = 0; gpu < gpu_count; gpu++) {
-    cudaSetDevice(gpu);
-    cublasCreate_v2(&(handles[gpu]));
+  for (size_t i = 0; i < gpu_count; i++)
+    devices[i] = i;
 
-    cudaStreamCreate(&(streams[gpu]));
+  cublasXtCreate(&handle);
+  cublasXtDeviceSelect(handle, gpu_count, devices);
 
-    launched_kernels++;
-
-    cudaMallocAsync(&(dev_buffers_a[gpu]), m * k * sizeof(double), streams[gpu]);
-
-    cudaMallocAsync(&(dev_buffers_b[gpu]), k * dev_n * sizeof(double), streams[gpu]);
-
-    cudaMallocAsync(&(dev_buffers_c[gpu]), m * dev_n * sizeof(double), streams[gpu]);
-
-    /* copy from host to device */
-    cudaMemcpy2DAsync(dev_buffers_a[gpu], k * sizeof(double), a, lda * sizeof(double), k * sizeof(double), m, cudaMemcpyHostToDevice, streams[gpu]);
-    cudaMemcpy2DAsync(dev_buffers_b[gpu], dev_n * sizeof(double), b + dev_n * gpu, ldb * sizeof(double), dev_n * sizeof(double), k, cudaMemcpyHostToDevice, streams[gpu]);
-    cudaMemcpy2DAsync(dev_buffers_c[gpu], dev_n * sizeof(double), c + dev_n * gpu, ldc * sizeof(double), dev_n * sizeof(double), m, cudaMemcpyHostToDevice, streams[gpu]);
-
-    /* perform computation */
-    /* note: some subtle math magic to make it work since cublas expects column-major matrices https://stackoverflow.com/a/56064726/17731255 */
-    cublasSetStream_v2(handles[gpu], streams[gpu]);
-    cublasDgemm_v2(handles[gpu], CUBLAS_OP_N, CUBLAS_OP_N, dev_n, m, k, &alpha, dev_buffers_b[gpu], dev_n, dev_buffers_a[gpu], k, &beta, dev_buffers_c[gpu], dev_n);
-
-    /* copy result from device to host */
-    cudaMemcpy2DAsync(c + dev_n * gpu, ldc * sizeof(double), dev_buffers_c[gpu], dev_n * sizeof(double), dev_n * sizeof(double), m, cudaMemcpyDeviceToHost, streams[gpu]);
-
-    cudaFreeAsync(dev_buffers_c[gpu], streams[gpu]);
-    cudaFreeAsync(dev_buffers_b[gpu], streams[gpu]);
-    cudaFreeAsync(dev_buffers_a[gpu], streams[gpu]);
-  }
-
-  for (int gpu = 0; gpu < launched_kernels; gpu++) {
-    cudaSetDevice(gpu);
-    cudaStreamSynchronize(streams[gpu]);
-    cudaStreamDestroy(streams[gpu]);
-    cublasDestroy_v2(handles[gpu]);
-  }
-
-  free(handles);
-  free(streams);
-  free(dev_buffers_c);
-  free(dev_buffers_b);
-  free(dev_buffers_a);
+  /* note: some subtle math magic to make it work since cublas expects column-major matrices https://stackoverflow.com/a/56064726/17731255 */
+  cublasXtDgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, n, m, k, &alpha, b, ldb, a, lda, &beta, c, ldc);
+  cublasXtDestroy(handle);
 }
 
 void phpc_gemm_cuda(const double *a, int lda, const double *b, int ldb, double *c, int ldc, int m, int k, int n, int gpu_count, int grid_width, int grid_height, int block_width) {
