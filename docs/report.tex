@@ -12,6 +12,7 @@
 \usepackage{xcolor}
 \usepackage{graphicx}
 \usepackage{hyperref}
+\usepackage{amssymb}
 \DeclareMathOperator{\lcm}{lcm}
 
 \lstset{
@@ -86,7 +87,8 @@ $$
     \end{pmatrix}
 $$
 
-Ad ogni processo $P_{ij}$ vengono assegnati i blocchi $\mathbf{A}_{is}$ per cui $\bmod(s,l)=j$, e i blocchi $\mathbf{B}_{tj}$ per cui $\bmod(t,l)=i$. L'algoritmo si svolge in più passaggi nei quali i processi collaborano per combinare blocchi specifici. Ad ogni passo $k$, il processo che possiede il blocco $\mathbf{A}_{ik}$ lo invia alla propria riga e, analogamente, il possessore del blocco $\mathbf{B}_{kj}$ alla propria colonna.
+Ad ogni processo $P_{ij}$ vengono assegnati i blocchi $\mathbf{A}_{is}$ per cui $\bmod(s,l)=j$, e i blocchi $\mathbf{B}_{tj}$ per cui $\bmod(t,l)=i$.
+L'algoritmo si svolge in più passaggi nei quali i processi collaborano per combinare blocchi specifici. Ad ogni passo $k$, il processo che possiede il blocco $\mathbf{A}_{ik}$ lo invia alla propria riga e, analogamente, il possessore del blocco $\mathbf{B}_{kj}$ alla propria colonna.
 Una volta ricevuti i blocchi necessari, ogni processo può calcolare una parte del prodotto parziale della matrice $\mathbf{C}$, sommando il risultato a quello già accumulato. Ripetendo questa operazione, alla fine ogni processo avrà calcolato il suo blocco completo di $\mathbf{C}$.
 
 \begin{algorithm}[h]
@@ -97,8 +99,8 @@ Una volta ricevuti i blocchi necessari, ogni processo può calcolare una parte d
         \For{$k \gets 0$ \textbf{to} $l - 1$}
         \State $s \gets \bmod(k, r)$
         \State $t \gets \bmod(k, c)$
-        \State process $P_{it}$ broadcasts $\mathbf{A}_{ik}$ to row
-        \State process $P_{sj}$ broadcasts $\mathbf{B}_{kj}$ to column
+        \State process $P_{it}$ broadcasts $\mathbf{A}_{ik}$ to its row
+        \State process $P_{sj}$ broadcasts $\mathbf{B}_{kj}$ to its column
         \State $\mathbf{C}_{ij} \gets \mathbf{C}_{ij} + \mathbf{A}_{ik}\mathbf{B}_{kj}$
         \EndFor
     \end{algorithmic}
@@ -106,10 +108,11 @@ Una volta ricevuti i blocchi necessari, ogni processo può calcolare una parte d
 
 L'ultimo passaggio consiste nel ricomporre le diverse sottomatrici dai vari processi, risolvibile con diversi approcci a seconda di come sia necessario il risultato.
 
-\medskip Nell'implementazione attuale, per semplicità, le matrici $\mathbf{A}, \mathbf{B}$ in input devono essere dei quadrati $n \times n$ dove $n = q \cdot \lcm(r,c)$ per qualche $q \ge 1$, allocate come array contigui \textit{row-major} e contenere già al loro interno (almeno) i dati dei blocchi assegnati al processo chiamante.
+\medskip Nell'implementazione attuale, per semplicità, si richiede che le matrici $\mathbf{A}, \mathbf{B}$ in input debbano essere dei quadrati $n \times n$ dove $n = q \cdot \lcm(r,c)$ per qualche $q \ge 1$, allocate come array contigui \textit{row-major} e contenere già al loro interno (almeno) i dati dei blocchi assegnati al processo chiamante.
 
 L'invio dei blocchi avviene tramite un'operazione di broadcast dello standard di comunicazione \textit{Message Passing Interface} (MPI)\footnote{\url{https://docs.open-mpi.org/en/v5.0.x/man-openmpi/man3/MPI_Bcast.3.html}}.
 Siccome bisogna inviare porzioni di una matrice più grande, è stato necessario creare dei tipi derivati appositi per tenere in considerazione gli spazi di memoria che intercorrono tra una riga e l'altra dei blocchi da inviare\footnote{\url{https://docs.open-mpi.org/en/v5.0.x/man-openmpi/man3/MPI_Type_vector.3.html}}.
+Le comunicazioni avvengono mediante le versioni bloccanti del broadcast. % TODO: perchè?
 
 $$
     \begin{pmatrix}
@@ -151,24 +154,7 @@ $$
 
 Questo meccanismo implica, ovviamente, che l'host debba essere in grado di avviare l'esecuzione su più GPU senza dover attendere prima il completamento di una di esse.
 Un metodo sicuramente valido è creare diversi thread a livello di processo, ognuno dei quali gestisca un determinato device.
-Tuttavia, CUDA offre anche varianti asincrone delle diverse funzioni e la possibilità di gestirle tramite \textit{stream}, ovvero code di operazioni da eseguire in sequenza.
-
-% TODO: aggiungere pseudocodice
-% \begin{algorithm}[h]
-%     \caption{MultiGPU}
-%     \begin{algorithmic}
-%         \For{$i \gets 0$ \textbf{to} $n - 1$}
-%         \State create stream $s_i$
-%         \State allocate memory async on device
-%         \State $C_i \gets cudaMemcpy()$
-%         \State $C_{ij} \gets C_{ij} + AB$
-%         \EndFor
-%         \For{$i \gets 0$ \textbf{to} $n - 1$}
-%         \State wait stream $i$
-%         \State destroy stream $i$
-%         \EndFor
-%     \end{algorithmic}
-% \end{algorithm}
+Tuttavia, CUDA offre anche varianti asincrone delle diverse funzioni e la possibilità di gestirle tramite \textit{stream}, ovvero code di operazioni da eseguire in sequenza. Possiamo quindi specificare, per ogni device, l'ordine delle funzioni da svolgere in uno stream apposito e infine aspettare la sincronizzazione di tutti gli stream.
 
 \subsubsection{Kernel}
 
