@@ -1,8 +1,8 @@
-// #include <cuda_runtime.h>
-// #include <math.h>
+#include <cuda_runtime.h>
+#include <math.h>
 #include <mpi.h>
 #include <stdio.h>
-// #include <stdlib.h>
+#include <stdlib.h>
 
 // #include "phpc_matrix_operations.cuh"
 // #include "utils.cuh"
@@ -18,17 +18,22 @@ int main(int argc, char *argv[]) {
   // int dims[2], period[2], coord[2], rank, size;
   // double start_time, end_time;
 
-  MPI_Init(&argc, &argv);
-  // MPI_ASSERT(argc >= 6);
+  // MPI_Init(&argc, &argv);
+  int provided;
+  MPI_Init_thread(&argc, &argv, MPI_THREAD_SERIALIZED, &provided);
+  MPI_ASSERT(argc >= 5);
 
   int rank, size;
   MPI_Comm_size(MPI_COMM_WORLD, &size);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-  // int N = atoi(argv[1]);
-  // int tile_width = atoi(argv[2]);
-  // int grid_width = atoi(argv[3]);
-  // int grid_height = atoi(argv[4]);
+  if (rank == 0)
+    printf("Provided: %d\n", provided);
+
+  int N = atoi(argv[1]);
+  int tile_width = atoi(argv[2]);
+  int grid_width = atoi(argv[3]);
+  int grid_height = atoi(argv[4]);
   // char *test_name = argv[5];
 
   double s = sqrt(size);
@@ -36,9 +41,9 @@ int main(int argc, char *argv[]) {
 
   // MPI_ASSERT(N % dims[0] == 0);
 
-  // int gpu_count;
-  // cudaGetDeviceCount(&gpu_count);
-  // MPI_ASSERT(gpu_count > 0);
+  int gpu_count;
+  cudaGetDeviceCount(&gpu_count);
+  MPI_ASSERT(gpu_count > 0);
 
   // int local_N = N / dims[0];
   // MPI_ASSERT(local_N % gpu_count == 0);
@@ -69,8 +74,8 @@ int main(int argc, char *argv[]) {
   // if (rank == 0) {
   //   printf("\nInitializing matrix A and B to 2.0, matrix C to 0.0...\n");
   // }
-  // for (i = 0; i < N; i++) {
-  //   for (j = 0; j < N; j++) {
+  // for (int i = 0; i < N; i++) {
+  //   for (int j = 0; j < N; j++) {
   //     *(A + i * N + j) = 2.0;
   //     *(B + i * N + j) = 2.0;
   //     *(C + i * N + j) = 0.0;
@@ -86,8 +91,8 @@ int main(int argc, char *argv[]) {
   // if (rank == 0) {
   //   printf("Checking correctness...\n");
   //   int test_correctness = 1;
-  //   for (i = 0; i < N; i++) {
-  //     for (j = 0; j < N; j++) {
+  //   for (int i = 0; i < N; i++) {
+  //     for (int j = 0; j < N; j++) {
   //       if (C[i * N + j] != 4.0 * N) {
   //         fprintf(stderr, "Correcteness error at rank %d, C[%d][%d] = %f\n", rank, i, j, C[i * N + j]);
   //         test_correctness = 0;
