@@ -51,6 +51,9 @@ int main(int argc, char *argv[]) {
   MPI_Cart_create(MPI_COMM_WORLD, 2, dims, period, 0, &grid_comm);
   MPI_Cart_coords(grid_comm, rank, 2, coord);
 
+  if (rank == 0)
+    printf("Process %d of %d\n", rank, size);
+
   // double *A = (double *)malloc(N * N * sizeof(double));
   // double *B = (double *)malloc(N * N * sizeof(double));
   // double *C = (double *)malloc(N * N * sizeof(double));
