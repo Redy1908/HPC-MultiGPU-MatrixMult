@@ -34,9 +34,14 @@ int main(int argc, char *argv[]) {
   int grid_height = atoi(argv[4]);
   char *test_name = argv[5];
 
-  dims[0] = 0;
-  dims[1] = 0;
-  MPI_Dims_create(size, 2, dims);
+  if (size == 1) {
+    dims[0] = 1;
+    dims[1] = 1;
+  } else {
+    dims[0] = 0;
+    dims[1] = 0;
+    MPI_Dims_create(size, 2, dims);
+  }
 
   if (N % dims[0] != 0 || N % dims[1] != 0) {
     if (rank == 0) {
@@ -92,7 +97,7 @@ int main(int argc, char *argv[]) {
 
   phpc_gemm_summa_cuda(grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, tile_width);
 
-if (rank == 0) {
+  if (rank == 0) {
     printf("Checking correctness...\n");
     int test_correctness = 1;
     double expected_value = 4.0 * N;
