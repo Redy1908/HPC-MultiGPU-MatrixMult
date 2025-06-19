@@ -2,14 +2,12 @@
 
 #SBATCH -p gpus
 #SBATCH --ntasks=1
-#SBATCH --ntasks-per-node=1 
 #SBATCH --gpus-per-task=1
 #SBATCH --time=00:02:00
 
 #SBATCH hetjob
 #SBATCH -p gpus
 #SBATCH --ntasks=4
-#SBATCH --ntasks-per-node=1 
 #SBATCH --gpus-per-task=1
 #SBATCH --time=00:02:00
 
