@@ -364,9 +364,27 @@ Il risultato sarà quindi salvato in una matrice column-major e che quindi corri
 
 TODO Pier: IBISCO
 
-\subsection{Configurazione dei test}
+\subsection{Script e Configurazione dei Test}
 
-TODO Pier: SCRIPT E CSV (per configurazione test)
+Per gestire l'esecuzione di un vasto numero di test con configurazioni eterogenee, è stato implementato un processo automatizzato orchestrato dallo script \texttt{scripts/run.sh}. La sua esecuzione può essere suddivisa nelle seguenti fasi:
+
+\begin{enumerate}
+    \item \textbf{Inizializzazione e Pulizia:} La prima azione dello script è la preparazione dell'ambiente di esecuzione. Vengono rimossi i risultati di esecuzioni precedenti eliminando il contenuto delle directory \texttt{logs/ csv/ plots/ profiling/ bin/}, se in caso queste non dovessero esistere verranno create. Questo garantisce che ogni esecuzione parta da uno stato pulito e che i risultati non vengano contaminati da test precedenti.
+
+    \item \textbf{Compilazione:} Viene compilato il codice sorgente presente nella directory \texttt{src/} usando \texttt{nvcc}. L'eseguibile risultante, \texttt{bin/main.out}, viene così aggiornato all'ultima versione del codice prima dell'avvio dei test.
+
+    \item \textbf{Iterazione sui File di Configurazione:} Lo script itera su tutti i file con estensione \texttt{.csv} presenti nella directory \texttt{tests/}. Ciascun file definisce una famiglia di test; al suo interno, ogni riga (esclusa l'intestazione) specifica i parametri per una singola esecuzione.
+
+    \item \textbf{Generazione e Sottomissione dei Job:} Per ogni riga di un file di configurazione, che rappresenta un singolo test, lo script esegue i seguenti passaggi:
+    \begin{itemize}
+        \item \textbf{Parsing dei Parametri:} I valori per \texttt{matrix\_size}, \texttt{n\_proc}, \texttt{n\_gpu}, \texttt{tile\_width}, \texttt{grid\_width} e \texttt{grid\_height} vengono estratti dalla riga corrente.
+        \item \textbf{Creazione dello Script SLURM:} Viene generato dinamicamente uno script di sottomissione SLURM. Questo script contiene le direttive \texttt{\#SBATCH} necessarie per richiedere le risorse al cluster (nodi, task, GPU per task) e definire i file di output e di errore. Il comando di esecuzione principale è incapsulato da \texttt{nsys profile} per la profilazione, e l'eseguibile \texttt{bin/main.out} viene lanciato con i parametri specifici del test.
+        \item \textbf{Sottomissione del Job:} Lo script SLURM appena creato viene sottomesso al gestore di code tramite il comando \texttt{sbatch}. L'ID del job restituito da SLURM viene catturato e memorizzato.
+        \item \textbf{Gestione delle Dipendenze:} L'ID del job viene aggiunto a una lista di dipendenze che sarà utilizzata nella fase finale.
+    \end{itemize}
+
+    \item \textbf{Job di Analisi e Plotting:} Una volta che tutti i job di calcolo sono stati sottomessi, lo script genera un ultimo job SLURM. Questo job ha una dipendenza di tipo \texttt{afterok} da tutti i job sottomessi in precedenza. Ciò significa che verrà eseguito solo dopo che tutti i test di calcolo saranno terminati con successo. Il compito di questo job finale è eseguire lo script Python \texttt{scripts/plots.py}, che si occupa di aggregare i dati dai file \texttt{.csv} generati e di creare i grafici di performance.
+\end{enumerate}
 
 \subsection{Analisi delle misurazioni}
 
