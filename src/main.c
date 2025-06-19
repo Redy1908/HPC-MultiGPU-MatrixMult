@@ -15,7 +15,7 @@
   }
 
 int main(int argc, char *argv[]) {
-  // int i, j;
+  int i, j;
   // int dims[2], period[2], coord[2], rank, size;
   double start_time, end_time;
 
@@ -133,8 +133,8 @@ int main(int argc, char *argv[]) {
     printf("\nInitializing matrix A and B to random values, matrix C to 0.0...\n");
   }
   srand(0);
-  for (int i = 0; i < N; i++) {
-    for (int j = 0; j < N; j++) {
+  for (i = 0; i < N; i++) {
+    for (j = 0; j < N; j++) {
       *(A + i * N + j) = (double)rand() / RAND_MAX;
       *(B + i * N + j) = (double)rand() / RAND_MAX;
     }
