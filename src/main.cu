@@ -34,21 +34,13 @@ int main(int argc, char *argv[]) {
   int grid_height = atoi(argv[4]);
   char *test_name = argv[5];
 
-  double s = sqrt(size);
+  dims[0] = 0;
+  dims[1] = 0;
+  MPI_Dims_create(size, 2, dims);
 
-  if (s != round(s)) {
+  if (N % dims[0] != 0 || N % dims[1] != 0) {
     if (rank == 0) {
-      fprintf(stderr, "Error: Number of processes (%d) must be a perfect square for a square process grid.\n", size);
-    }
-    MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
-  }
-
-  dims[0] = (int)round(s);
-  dims[1] = (int)round(s);
-
-  if (N % dims[0] != 0) {
-    if (rank == 0) {
-      fprintf(stderr, "Error: Matrix size N (%d) must be divisible by the process grid width (%d).\n", N, dims[0]);
+      fprintf(stderr, "Error: Matrix size N (%d) must be divisible by process grid dimensions (%d x %d).\n", N, dims[0], dims[1]);
     }
     MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
   }
@@ -57,8 +49,13 @@ int main(int argc, char *argv[]) {
   cudaGetDeviceCount(&gpu_count);
   MPI_ASSERT(gpu_count > 0);
 
-  int local_N = N / dims[0];
-  MPI_ASSERT(local_N % gpu_count == 0);
+  int local_cols = N / dims[1];
+  if (local_cols % gpu_count != 0) {
+    if (rank == 0) {
+      fprintf(stderr, "Error: The number of local columns (%d) must be divisible by the number of GPUs (%d).\n", local_cols, gpu_count);
+    }
+    MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+  }
 
   period[0] = 1;
   period[1] = 1;
@@ -95,13 +92,16 @@ int main(int argc, char *argv[]) {
 
   phpc_gemm_summa_cuda(grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, tile_width);
 
-  if (rank == 0) {
+if (rank == 0) {
     printf("Checking correctness...\n");
     int test_correctness = 1;
+    double expected_value = 4.0 * N;
+    double epsilon = 1e-9;
+
     for (i = 0; i < N; i++) {
       for (j = 0; j < N; j++) {
-        if (C[i * N + j] != 4.0 * N) {
-          fprintf(stderr, "Correcteness error at rank %d, C[%d][%d] = %f\n", rank, i, j, C[i * N + j]);
+        if (fabs(C[i * N + j] - expected_value) > epsilon) {
+          fprintf(stderr, "Correcteness error at rank %d, C[%d][%d] = %f, expected %f\n", rank, i, j, C[i * N + j], expected_value);
           test_correctness = 0;
         }
       }
