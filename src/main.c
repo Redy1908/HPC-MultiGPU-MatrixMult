@@ -19,9 +19,9 @@ int main(int argc, char *argv[]) {
   // int dims[2], period[2], coord[2], rank, size;
   double start_time, end_time;
 
-  // MPI_Init(&argc, &argv);
-  int provided;
-  MPI_Init_thread(&argc, &argv, MPI_THREAD_SERIALIZED, &provided);
+  MPI_Init(&argc, &argv);
+  // int provided;
+  // MPI_Init_thread(&argc, &argv, MPI_THREAD_SERIALIZED, &provided);
   MPI_ASSERT(argc >= 5);
 
   int rank, size;
@@ -116,29 +116,29 @@ int main(int argc, char *argv[]) {
   // Test di efficienza
   // ==================================================
 
-  // FILE *csv_file = NULL;
-  // char filename[256];
-  // if (rank == 0) {
-  //   snprintf(filename, sizeof(filename), "csv/%s_N%d_T%d_G%d_TW%d_GW%d_GH%d.csv", test_name, N, size, gpu_count, tile_width, grid_width, grid_height);
-  //   csv_file = fopen(filename, "w");
-  //   if (csv_file == NULL) {
-  //     fprintf(stderr, "Error: Could not create CSV file %s\n", filename);
-  //     MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
-  //   }
+  FILE *csv_file = NULL;
+  char filename[256];
+  if (rank == 0) {
+    snprintf(filename, sizeof(filename), "csv/%s_N%d_T%d_G%d_TW%d_GW%d_GH%d.csv", test_name, N, size, gpu_count, tile_width, grid_width, grid_height);
+    csv_file = fopen(filename, "w");
+    if (csv_file == NULL) {
+      fprintf(stderr, "Error: Could not create CSV file %s\n", filename);
+      MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+    }
 
-  //   fprintf(csv_file, "matrix_size,n_proc,n_gpu,n_block,n_thread_per_block,method,time\n");
-  // }
+    fprintf(csv_file, "matrix_size,n_proc,n_gpu,n_block,n_thread_per_block,method,time\n");
+  }
 
-  // if (rank == 0) {
-  //   printf("\nInitializing matrix A and B to random values, matrix C to 0.0...\n");
-  // }
-  // srand(0);
-  // for (i = 0; i < N; i++) {
-  //   for (j = 0; j < N; j++) {
-  //     *(A + i * N + j) = (double)rand() / RAND_MAX;
-  //     *(B + i * N + j) = (double)rand() / RAND_MAX;
-  //   }
-  // }
+  if (rank == 0) {
+    printf("\nInitializing matrix A and B to random values, matrix C to 0.0...\n");
+  }
+  srand(0);
+  for (int i = 0; i < N; i++) {
+    for (int j = 0; j < N; j++) {
+      *(A + i * N + j) = (double)rand() / RAND_MAX;
+      *(B + i * N + j) = (double)rand() / RAND_MAX;
+    }
+  }
 
   // if (rank == 0) {
   //   printf("Matrix initialization complete.\n");
@@ -172,7 +172,7 @@ int main(int argc, char *argv[]) {
   end_time = get_cur_time() - start_time;
 
   if (rank == 0)
-    log_to_csv(stdout, N, size, gpu_count, grid_width * grid_height, tile_width * tile_width, "SUMMA_CUDA", end_time);
+    log_to_csv(csv_file, N, size, gpu_count, grid_width * grid_height, tile_width * tile_width, "SUMMA_CUDA", end_time);
 
   // ==================================================
   // Test SUMMA CUBLAS with the current tile width and grid size
@@ -186,8 +186,8 @@ int main(int argc, char *argv[]) {
   end_time = get_cur_time() - start_time;
 
   if (rank == 0) {
-    log_to_csv(stdout, N, size, gpu_count, grid_width * grid_height, tile_width * tile_width, "SUMMA_CUBLAS", end_time);
-    // fclose(csv_file);
+    log_to_csv(csv_file, N, size, gpu_count, grid_width * grid_height, tile_width * tile_width, "SUMMA_CUBLAS", end_time);
+    fclose(csv_file);
     // printf("\n  All tests completed.\n\n");
   }
 
