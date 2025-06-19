@@ -6,7 +6,21 @@
 #include <stdlib.h>
 
 #include "phpc_matrix_operations.cuh"
-#include "utils.cuh"
+
+int find_lcm(int a, int b) {
+  int q, r;
+  int x = a;
+  int y = b;
+
+  while (y != 0) {
+    q = x / y;
+    r = x - q * y;
+    x = y;
+    y = r;
+  }
+
+  return a * b / x;
+}
 
 typedef void (*gemm_t)(const double *a, int lda, const double *b, int ldb, double *c, int ldc, int m, int k, int n, int gpu_count, int grid_width, int grid_height, int block_width);
 

@@ -1,11 +1,12 @@
 #include <cuda_runtime.h>
 #include <math.h>
-#include <mpi.h>
+#include <mpi/mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "phpc_matrix_operations.cuh"
-#include "utils.cuh"
+#include "utils.h"
 
 #define MPI_ASSERT(check)                                                       \
   if (!(check)) {                                                               \
