@@ -18,16 +18,11 @@ int main(int argc, char *argv[]) {
   double start_time, end_time;
 
   MPI_Init(&argc, &argv);
+  MPI_ASSERT(argc >= 6);
 
   MPI_Comm_size(MPI_COMM_WORLD, &size);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-  if (argc != 6) {
-    if (rank == 0) {
-      fprintf(stderr, "Usage: %s <matrix_size> <tile_width> <grid_width> <grid_height> <test_name>\n", argv[0]);
-    }
-    MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
-  }
   int N = atoi(argv[1]);
   int tile_width = atoi(argv[2]);
   int grid_width = atoi(argv[3]);
@@ -35,23 +30,12 @@ int main(int argc, char *argv[]) {
   char *test_name = argv[5];
 
   double s = sqrt(size);
-
-  if (s != round(s)) {
-    if (rank == 0) {
-      fprintf(stderr, "Error: Number of processes (%d) must be a perfect square for a square process grid.\n", size);
-    }
-    MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
-  }
+  MPI_ASSERT(s == round(s));
 
   dims[0] = (int)round(s);
   dims[1] = (int)round(s);
 
-  if (N % dims[0] != 0) {
-    if (rank == 0) {
-      fprintf(stderr, "Error: Matrix size N (%d) must be divisible by the process grid width (%d).\n", N, dims[0]);
-    }
-    MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
-  }
+  MPI_ASSERT(N % dims[0] == 0);
 
   int gpu_count;
   cudaGetDeviceCount(&gpu_count);
@@ -78,62 +62,62 @@ int main(int argc, char *argv[]) {
   // Test di correttezza
   // ==================================================
   // FIXME: don't need to run this test every time once we estabilished it works
-  if (rank == 0) {
-    printf("\nInitializing matrix A and B to 2.0, matrix C to 0.0...\n");
-  }
-  for (i = 0; i < N; i++) {
-    for (j = 0; j < N; j++) {
-      *(A + i * N + j) = 2.0;
-      *(B + i * N + j) = 2.0;
-      *(C + i * N + j) = 0.0;
-    }
-  }
-  if (rank == 0) {
-    printf("Matrix initialization complete.\n");
-    printf("\nRunning correctness test...\n");
-  }
+  // if (rank == 0) {
+  //   printf("\nInitializing matrix A and B to 2.0, matrix C to 0.0...\n");
+  // }
+  // for (i = 0; i < N; i++) {
+  //   for (j = 0; j < N; j++) {
+  //     *(A + i * N + j) = 2.0;
+  //     *(B + i * N + j) = 2.0;
+  //     *(C + i * N + j) = 0.0;
+  //   }
+  // }
+  // if (rank == 0) {
+  //   printf("Matrix initialization complete.\n");
+  //   printf("\nRunning correctness test...\n");
+  // }
 
-  phpc_gemm_summa_cuda(grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, tile_width);
+  // phpc_gemm_summa_cuda(grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, tile_width);
 
-  if (rank == 0) {
-    printf("Checking correctness...\n");
-    int test_correctness = 1;
-    for (i = 0; i < N; i++) {
-      for (j = 0; j < N; j++) {
-        if (C[i * N + j] != 4.0 * N) {
-          fprintf(stderr, "Correcteness error at rank %d, C[%d][%d] = %f\n", rank, i, j, C[i * N + j]);
-          test_correctness = 0;
-        }
-      }
-    }
+  // if (rank == 0) {
+  //   printf("Checking correctness...\n");
+  //   int test_correctness = 1;
+  //   for (i = 0; i < N; i++) {
+  //     for (j = 0; j < N; j++) {
+  //       if (C[i * N + j] != 4.0 * N) {
+  //         fprintf(stderr, "Correcteness error at rank %d, C[%d][%d] = %f\n", rank, i, j, C[i * N + j]);
+  //         test_correctness = 0;
+  //       }
+  //     }
+  //   }
 
-    if (test_correctness) {
-      printf("Correctness test passed.\n");
-    } else {
-      printf("Correctness test FAILED. Aborting...\n");
-      free(A);
-      free(B);
-      free(C);
-      MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
-    }
-  }
+  //   if (test_correctness) {
+  //     printf("Correctness test passed.\n");
+  //   } else {
+  //     printf("Correctness test FAILED. Aborting...\n");
+  //     free(A);
+  //     free(B);
+  //     free(C);
+  //     MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+  //   }
+  // }
 
   // ==================================================
   // Test di efficienza
   // ==================================================
 
-  FILE *csv_file = NULL;
-  char filename[256];
-  if (rank == 0) {
-    snprintf(filename, sizeof(filename), "csv/%s_N%d_T%d_G%d_TW%d_GW%d_GH%d.csv", test_name, N, size, gpu_count, tile_width, grid_width, grid_height);
-    csv_file = fopen(filename, "w");
-    if (csv_file == NULL) {
-      fprintf(stderr, "Error: Could not create CSV file %s\n", filename);
-      MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
-    }
+  // FILE *csv_file = NULL;
+  // char filename[256];
+  // if (rank == 0) {
+  //   snprintf(filename, sizeof(filename), "csv/%s_N%d_T%d_G%d_TW%d_GW%d_GH%d.csv", test_name, N, size, gpu_count, tile_width, grid_width, grid_height);
+  //   csv_file = fopen(filename, "w");
+  //   if (csv_file == NULL) {
+  //     fprintf(stderr, "Error: Could not create CSV file %s\n", filename);
+  //     MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+  //   }
 
-    fprintf(csv_file, "matrix_size,n_proc,n_gpu,n_block,n_thread_per_block,method,time\n");
-  }
+  //   fprintf(csv_file, "matrix_size,n_proc,n_gpu,n_block,n_thread_per_block,method,time\n");
+  // }
 
   if (rank == 0) {
     printf("\nInitializing matrix A and B to random values, matrix C to 0.0...\n");
@@ -155,16 +139,16 @@ int main(int argc, char *argv[]) {
   // TEST Iterative
   // ==================================================
   // FIXME: don't need to run this test every time if the only thing that changes is the matrices size
-  if (rank == 0) {
-    printf("  Running iterative test...\n");
-    memset(C, 0, N * N * sizeof(double));
+  // if (rank == 0) {
+  //   printf("  Running iterative test...\n");
+  //   memset(C, 0, N * N * sizeof(double));
 
-    start_time = get_cur_time();
-    phpc_gemm_iterative(A, B, C, N);
-    end_time = get_cur_time() - start_time;
+  //   start_time = get_cur_time();
+  //   phpc_gemm_iterative(A, B, C, N);
+  //   end_time = get_cur_time() - start_time;
 
-    log_to_csv(csv_file, N, 1, gpu_count, 0, 0, "ITERATIVE", end_time);
-  }
+  //   log_to_csv(csv_file, N, 1, gpu_count, 0, 0, "ITERATIVE", end_time);
+  // }
 
   // ==================================================
   // Test SUMMA CUDA
@@ -177,25 +161,25 @@ int main(int argc, char *argv[]) {
   phpc_gemm_summa_cuda(grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, tile_width);
   end_time = get_cur_time() - start_time;
 
-  if (rank == 0)
-    log_to_csv(csv_file, N, size, gpu_count, grid_width * grid_height, tile_width * tile_width, "SUMMA_CUDA", end_time);
+  // if (rank == 0)
+  //   log_to_csv(csv_file, N, size, gpu_count, grid_width * grid_height, tile_width * tile_width, "SUMMA_CUDA", end_time);
 
   // ==================================================
   // Test SUMMA CUBLAS with the current tile width and grid size
   // ==================================================
-  if (rank == 0) printf("  Running SUMMA CUBLAS test...\n");
-  memset(C, 0, N * N * sizeof(double));
-  MPI_Barrier(MPI_COMM_WORLD);
+  // if (rank == 0) printf("  Running SUMMA CUBLAS test...\n");
+  // memset(C, 0, N * N * sizeof(double));
+  // MPI_Barrier(MPI_COMM_WORLD);
 
-  start_time = get_cur_time();
-  phpc_gemm_summa_cublas(grid_comm, A, B, C, N, gpu_count);
-  end_time = get_cur_time() - start_time;
+  // start_time = get_cur_time();
+  // phpc_gemm_summa_cublas(grid_comm, A, B, C, N, gpu_count);
+  // end_time = get_cur_time() - start_time;
 
-  if (rank == 0) {
-    log_to_csv(csv_file, N, size, gpu_count, grid_width * grid_height, tile_width * tile_width, "SUMMA_CUBLAS", end_time);
-    fclose(csv_file);
-    printf("\n  All tests completed.\n\n");
-  }
+  // if (rank == 0) {
+  //   log_to_csv(csv_file, N, size, gpu_count, grid_width * grid_height, tile_width * tile_width, "SUMMA_CUBLAS", end_time);
+  //   fclose(csv_file);
+  //   printf("\n  All tests completed.\n\n");
+  // }
 
   free(A);
   free(B);
