@@ -1,8 +1,8 @@
-#include <cuda_runtime.h>
-#include <math.h>
+// #include <cuda_runtime.h>
+// #include <math.h>
 #include <mpi.h>
 #include <stdio.h>
-#include <stdlib.h>
+// #include <stdlib.h>
 
 // #include "phpc_matrix_operations.cuh"
 // #include "utils.cuh"
@@ -14,40 +14,40 @@
   }
 
 int main(int argc, char *argv[]) {
-  int i, j;
-  int dims[2], period[2], coord[2], rank, size;
-  double start_time, end_time;
+  // int i, j;
+  // int dims[2], period[2], coord[2], rank, size;
+  // double start_time, end_time;
 
   MPI_Init(&argc, &argv);
-  MPI_ASSERT(argc >= 6);
+  // MPI_ASSERT(argc >= 6);
 
+  int rank, size;
   MPI_Comm_size(MPI_COMM_WORLD, &size);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-  int N = atoi(argv[1]);
-  int tile_width = atoi(argv[2]);
-  int grid_width = atoi(argv[3]);
-  int grid_height = atoi(argv[4]);
-  char *test_name = argv[5];
+  // int N = atoi(argv[1]);
+  // int tile_width = atoi(argv[2]);
+  // int grid_width = atoi(argv[3]);
+  // int grid_height = atoi(argv[4]);
+  // char *test_name = argv[5];
 
   double s = sqrt(size);
   MPI_ASSERT(s == round(s));
 
-  dims[0] = (int)round(s);
-  dims[1] = (int)round(s);
+  // MPI_ASSERT(N % dims[0] == 0);
 
-  MPI_ASSERT(N % dims[0] == 0);
+  // int gpu_count;
+  // cudaGetDeviceCount(&gpu_count);
+  // MPI_ASSERT(gpu_count > 0);
 
-  int gpu_count;
-  cudaGetDeviceCount(&gpu_count);
-  MPI_ASSERT(gpu_count > 0);
+  // int local_N = N / dims[0];
+  // MPI_ASSERT(local_N % gpu_count == 0);
 
-  int local_N = N / dims[0];
-  MPI_ASSERT(local_N % gpu_count == 0);
-
-  period[0] = 1;
-  period[1] = 1;
   MPI_Comm grid_comm;
+  int period[2] = {0, 0};
+  int dims[2] = {(int)round(s), (int)round(s)};
+  int coord[2];
+
   MPI_Cart_create(MPI_COMM_WORLD, 2, dims, period, 0, &grid_comm);
   MPI_Cart_coords(grid_comm, rank, 2, coord);
 
