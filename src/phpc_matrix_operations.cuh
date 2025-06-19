@@ -1,7 +1,7 @@
 #ifndef _PHPC_MATRIX_OPERATIONS
 #define _PHPC_MATRIX_OPERATIONS
 
-#include <mpi/mpi.h>
+#include <mpi.h>
 
 #ifdef __cplusplus
 extern "C"
