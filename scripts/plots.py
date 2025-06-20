@@ -60,6 +60,7 @@ def plot_case_group(case_tag, dfs):
         if method == 'ITERATIVE':
             continue
         mgroup = df[df['method'] == method]
+        mgroup = mgroup.sort_values(by=x_param)
         plt.plot(mgroup[x_param], mgroup['time'], label=method)
 
     x_vals = sorted(df[x_param].unique())
@@ -82,16 +83,19 @@ def plot_case_group(case_tag, dfs):
         if method == 'ITERATIVE':
             continue
         mdata = df[df['method'] == method].copy()
+        mdata = mdata.sort_values(by=x_param)
         mdata['speedup'] = T1 / mdata['time']
         mdata['efficiency'] = mdata['speedup'] / mdata['total_threads']
-        mdata['scaled_speedup'] = (mdata['matrix_size'] ** 3) / (T1 * mdata['time'])
-        mdata['scaled_efficiency'] = mdata['scaled_speedup'] / mdata['total_threads']
+        if case_tag not in ['a1', 'a2']:
+            mdata['scaled_speedup'] = (mdata['matrix_size'] ** 3) / (T1 * mdata['time'])
+            mdata['scaled_efficiency'] = mdata['scaled_speedup'] / mdata['total_threads']
         mdata['gflops'] = (2 * (mdata['matrix_size'] ** 3)) / (mdata['time'] * 1e9)
         mdata.to_csv(f"plots/metrics_{case_tag}_{method}.csv", index=False)
 
         plt.figure()
         plt.plot(mdata[x_param], mdata['speedup'], label='Speed-up')
-        plt.plot(mdata[x_param], mdata['scaled_speedup'], label='Speed-up scalato')
+        if case_tag not in ['a1', 'a2']:
+            plt.plot(mdata[x_param], mdata['scaled_speedup'], label='Speed-up scalato')
         plt.xlabel(x_param)
         plt.ylabel("Speed-up")
         plt.title(f"Speed-up {method} - Caso {case_tag}")
@@ -101,7 +105,8 @@ def plot_case_group(case_tag, dfs):
 
         plt.figure()
         plt.plot(mdata[x_param], mdata['efficiency'], label='Efficienza')
-        plt.plot(mdata[x_param], mdata['scaled_efficiency'], label='Efficienza scalata')
+        if case_tag not in ['a1', 'a2']:
+            plt.plot(mdata[x_param], mdata['scaled_efficiency'], label='Efficienza scalata')
         plt.xlabel(x_param)
         plt.ylabel("Efficienza")
         plt.title(f"Efficienza {method} - Caso {case_tag}")
