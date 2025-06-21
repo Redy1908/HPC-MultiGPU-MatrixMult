@@ -54,14 +54,6 @@ int main(int argc, char *argv[]) {
   cudaGetDeviceCount(&gpu_count);
   MPI_ASSERT(gpu_count > 0);
 
-  int local_cols = N / dims[1];
-  if (local_cols % gpu_count != 0) {
-    if (rank == 0) {
-      fprintf(stderr, "Error: The number of local columns (%d) must be divisible by the number of GPUs (%d).\n", local_cols, gpu_count);
-    }
-    MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
-  }
-
   period[0] = 1;
   period[1] = 1;
   MPI_Comm grid_comm;
