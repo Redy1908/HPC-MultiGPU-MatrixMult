@@ -44,11 +44,12 @@
 
 \section{Introduzione}
 
-Sviluppare un’applicazione per il prodotto tra matrici su cluster multi-nodo e multi-GPU per nodo (MPI + CUDA, attraverso SLURM). All’interno di questa applicazione devono essere possibili entrambe le seguenti:
-\begin{enumerate}
-    \item utilizzare kernel originali per i calcoli sulla GPU;
-    \item utilizzare funzioni della libreria cuBLAS in alternativa a quelle originali.
-\end{enumerate}
+Sviluppare un’applicazione per il prodotto tra matrici su cluster multi-nodo e multi-GPU per nodo (MPI + CUDA, attraverso SLURM).
+
+Definiamo formalmente l'operazione di prodotto tra matrici.
+Siano date una matrice $\mathbf{A} \in \mathbb{R}^{m\times{k}}$ ed una seconda matrice $\mathbf{B} \in \mathbb{R}^{k\times{n}}$.
+Si definisce il prodotto matriciale di $\mathbf{A}$ per $\mathbf{B}$ la matrice $\mathbf{C}=\mathbf{A}\mathbf{B} \in \mathbb{R}^{m\times{n}}$ in cui ogni elemento $\mathbf{C}_{i,j}$ è dato dal prodotto scalare tra la $i$-esima riga di $\mathbf{A}$ per la $j$-esima colonna di $\mathbf{B}$:
+$$ \mathbf{C}_{i,j} = \sum_{l=0}^{\text{k}-1} \mathbf{A}_{i, l} \cdot \mathbf{B}_{l, j} $$
 
 \section{Implementazione}
 In un ambiente multi-nodo e multi-GPU, il prodotto tra matrici può essere articolato in due livelli distinti ma interconnessi.
@@ -158,19 +159,7 @@ Tuttavia, CUDA offre anche varianti asincrone delle diverse funzioni e la possib
 
 \subsubsection{Kernel}
 
-La moltiplicazione tra una matrice M $(I\times{J})$ e una matrice N $(J\times{K})$ produce una matrice P $(I\times{K})$. Ognuno degli elementi della matrice $P$ è il prodotto scalare tra una riga di $M$ e una colonna di $N$. Riferendoci agli elementi di $P$ con $P_{\text{row}, \text{col}}$ avremo:
-
-\[
-    P_{\text{row}, \text{col}} = \sum_{k=0}^{\text{Width}-1} M_{\text{row}, k} \cdot N_{k, \text{col}}
-\]
-
-Ovvero per calcolare ad esempio l'elemento $P_{1, 5}$:
-
-\[
-    P_{1,5} = M_{1,0} \cdot N_{0,5} + M_{1,1} \cdot N_{1,5} + M_{1,2} \cdot N_{2,5} + \ldots + M_{1,\text{width}-1} \cdot N_{\text{width}-1,5}
-\]
-
-Per implementare la moltiplicazione tra matrici usando CUDA, possiamo mappare i thread nelle griglia agli elementi della matrice di output $P$. In questo modo, ogni thread sarà responsabile del calcolo di un elemento di $P$. Gli indici di colonna per gli elementi di $P$ sarano:
+Come descritto in precedenza, nel prodotto tra matrici ogni elemento $\mathbf{C}_{i,j}$ è dato dal prodotto scalare tra la riga $i$-esima di $\mathbf{A}$ e la colonna $j$-esima di $\mathbf{B}$. Per implementare questa operazione usando CUDA, possiamo mappare i thread della griglia agli elementi della matrice di output in modo che ognuno sia responsabile del calcolo di un singolo elemento. Gli indici dell'elemento che ogni thread dovrà calcolare saranno:
 
 \[
     \begin{aligned}
@@ -198,7 +187,7 @@ __global__ void MatrixMulKernel(float* M, float* N,
 
 \newpage
 
-La Figura~\ref{fig:1}, mostra come viene suddivisa la matrice $P$ ($4\times{4}$) in una griglia di blocchi $2\times{2}$ con blocchi $2\times{2}$. Mentre la Figura~\ref{fig:2} ne mostra una parte dell'esecuzione.
+La Figura~\ref{fig:1} mostra un esempio di suddivisione per una matrice ${4\times{4}}$ con una griglia $2\times{2}$ di blocchi $2\times{2}$, mentre la Figura~\ref{fig:2} ne mostra una parte dell'esecuzione.
 
 \begin{figure}[H]
     \centering
@@ -217,7 +206,7 @@ La Figura~\ref{fig:1}, mostra come viene suddivisa la matrice $P$ ($4\times{4}$)
     \end{minipage}
 \end{figure}
 
-Questo è un approccio basilare con ampi margini di miglioramento, infatti in un contesto CUDA è fondamentale ragionare tenendo in considerazione le differenti prestazioni delle differenti memorie: la memoria globale è grande ma lenta di controparte la memoria condivisa è piccola ma veloce. Una strategia decisamente migliore rispetto a quella presentata in precedenza è quella di partizionare i dati in sottoinsiemi chiamati \textit{tiles} in modo tale che ognuna di essa entri nella memoria condivisa con un importante vincolo, la computazione del kernel sulla singola tile può essere fatta indipendentemente dalle altre. Tornando all' esempio precedente mostriamo gli accessi alla memoria globale generati dal'esempio in Figura~\ref{fig:2}:
+Questo è un approccio basilare con ampi margini di miglioramento. Infatti, in un contesto CUDA, è fondamentale ragionare tenendo in considerazione le prestazioni delle differenti memorie: la memoria globale è grande ma lenta, di controparte la memoria condivisa è piccola ma più veloce. Una strategia decisamente migliore rispetto a quella presentata in precedenza è quella di partizionare i dati in sottoinsiemi chiamati \textit{tiles}, in modo tale che ognuna di essa entri nella memoria condivisa con un importante vincolo: la computazione del kernel sulla singola tile può essere fatta indipendentemente dalle altre. Ad esempio, mostriamo gli accessi alla memoria globale che avvengono nella Figura~\ref{fig:2}:
 
 \begin{figure}[H]
     \centering
@@ -226,7 +215,7 @@ Questo è un approccio basilare con ampi margini di miglioramento, infatti in un
     \label{fig:3}
 \end{figure}
 
-Nella Figura~\ref{fig:3} possiamo notare come gli stessi elementi vengano letti dalla lenta memoria globale in diversi step dell'esecuzione. In generale data la dimensione dei blocchi $width\times{width}$ ogni elemento delle matrici $M$ ed $N$ è letto dalla memoria globale $width$ volte. L'idea è quindi quella di far collaborare i threads per caricare in memoria condivisa anticipatamente tutti i dati per poi procedere allo sviluppo dei calcoli cosi facendo stiamo riducendo di $\frac{1}{width}$ gli accessi alla memoria. La Figura~\ref{fig:1} mostra gli accessi alla memoria per questo approccio.
+Nella Figura~\ref{fig:3} possiamo notare come gli stessi elementi vengano letti dalla lenta memoria globale in diversi step dell'esecuzione. In generale data la dimensione dei blocchi $width\times{width}$ ogni elemento delle matrici $\mathbf{A}$ e $\mathbf{B}$ è letto dalla memoria globale $width$ volte. L'idea è quindi quella di far collaborare i threads per caricare in memoria condivisa anticipatamente tutti i dati per poi procedere allo sviluppo dei calcoli cosi facendo stiamo riducendo di $\frac{1}{width}$ gli accessi alla memoria. La Figura~\ref{fig:4} mostra gli accessi alla memoria per questo approccio.
 
 \begin{figure}[H]
     \centering
@@ -265,7 +254,7 @@ __global__ void matrixMulKernel(float* M, float* N, float* P, int Width) {
 
 \newpage
 
-Il Listing~\ref{lst:2} nonostante ottimizzi l'uso delle memorie non funzionerebbe con matrici la cui $widht$ non sia un multiplo di $TILE\_WIDHT$ nel Listing~\ref{lst:3} è mostrata la soluzione approssimando per eccesso la divisione per $TILE\_WIDTH$ e riempendo con degli $0$ le parti di tile che non vanno effettivamente utilizzate
+Il Listing~\ref{lst:2} nonostante ottimizzi l'uso delle memorie non funzionerebbe con matrici la cui $width$ non sia un multiplo di $TILE\_WIDTH$. Nel Listing~\ref{lst:3} è mostrata la soluzione approssimando per eccesso la divisione per $TILE\_WIDTH$ e riempendo con degli $0$ le parti di tile che non vanno effettivamente utilizzate:
 
 \begin{lstlisting}[caption={Kernel CUDA con gestione dei bordi e tiling}, label={lst:3}]
 float Pvalue = 0;
@@ -352,7 +341,7 @@ __global__ void matrixMulKernel(double *A, double *B, double *C, int M, int N, i
 \subsubsection{cuBLAS}
 In alternativa a scrivere le proprie funzioni per il calcolo tra matrici, è disponibile la libreria cuBLAS sviluppata da NVIDIA che fornisce una versione ottimizzata per GPU delle routine BLAS (Basic Linear Algebra Subprograms), una serie standard di operazioni fondamentali in algebra lineare\footnote{\url{https://netlib.org/blas/}}. Sono inoltre disponibili diverse estensioni, tra cui cuBLASXt progettata per sfruttare più GPU contemporaneamente. Non sono necessari preparativi particolari, dato che si occupa autonomamente di allocare la memoria tra le GPU designate, distribuire il carico di lavoro tra di loro e infine recuperare i risultati sull'host\footnote{\url{https://docs.nvidia.com/cuda/cublas/index.html\#using-the-cublasxt-api}}.
 
-Una nota tecnica riguarda la discrepanza tra l'ordine in memoria delle matrici: cuBLAS, per rimanere conforme alle specifiche Fortran di BLAS, si aspetta che i valori siano disposti per \textit{column-major} mentre lo standard nel C è \textit{row-major}. Fortunatamente, è possibile evitare operazioni di memoria aggiuntive il fatto che i due metodi sono le rispettive trasposte e calcolare
+Una nota tecnica riguarda la discrepanza tra l'ordine in memoria delle matrici: cuBLAS, per rimanere conforme alle specifiche Fortran di BLAS, si aspetta che i valori siano disposti per \textit{column-major} mentre lo standard nel linguaggio C/C++ è \textit{row-major}. Fortunatamente, è possibile evitare operazioni di memoria aggiuntive il fatto che i due metodi sono le rispettive trasposte e calcolare
 $$
     \mathbf{C}^T=(\mathbf{B}\mathbf{A})^T
 $$
