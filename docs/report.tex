@@ -62,51 +62,49 @@ Il prodotto tra matrici viene eseguito a livello di processi tramite SUMMA (Scal
 Si dispongano i diversi processi in una griglia logica bidimensionale $r \times c$ e sia $l=\lcm(r, c)$. È possibile suddividere le matrici nel seguente modo:
 $$
     \mathbf{A}=
-    \begin{pmatrix}
-        \mathbf{A}_{00}     & \cdots & \mathbf{A}_{0(l-1)}     \\
-        \vdots              & \ddots & \vdots                  \\
-        \mathbf{A}_{(r-1)0} & \cdots & \mathbf{A}_{(r-1)(l-1)}
-    \end{pmatrix}
+    \begin{bmatrix}
+        \mathbf{A}^{0,0}     & \cdots & \mathbf{A}^{0,(l-1)}     \\
+        \vdots               & \ddots & \vdots                   \\
+        \mathbf{A}^{(r-1),0} & \cdots & \mathbf{A}^{(r-1),(l-1)}
+    \end{bmatrix}
 $$
 
 $$
     \mathbf{B}=
-    \begin{pmatrix}
-        \mathbf{B}_{00}     & \cdots & \mathbf{B}_{0(c-1)}     \\
-        \vdots              & \ddots & \vdots                  \\
-        \mathbf{B}_{(l-1)0} & \cdots & \mathbf{B}_{(l-1)(c-1)}
-    \end{pmatrix}
+    \begin{bmatrix}
+        \mathbf{B}^{0,0}     & \cdots & \mathbf{B}^{0,(c-1)}     \\
+        \vdots               & \ddots & \vdots                   \\
+        \mathbf{B}^{(l-1),0} & \cdots & \mathbf{B}^{(l-1),(c-1)}
+    \end{bmatrix}
 $$
 
 $$
     \mathbf{C}=
-    \begin{pmatrix}
-        \sum_{k=0}^{l-1}\mathbf{A}_{0k}\mathbf{B}_{k0}     & \cdots & \sum_{k=0}^{l-1}\mathbf{A}_{0k}\mathbf{B}_{k(c-1)}     \\
-        \vdots                                             & \ddots & \vdots                                                 \\
-        \sum_{k=0}^{l-1}\mathbf{A}_{(r-1)k}\mathbf{B}_{k0} & \cdots & \sum_{k=0}^{l-1}\mathbf{A}_{(r-1)k}\mathbf{B}_{k(c-1)}
-    \end{pmatrix}
+    \begin{bmatrix}
+        \sum_{k=0}^{l-1}\mathbf{A}^{0,k}\mathbf{B}^{k,0}     & \cdots & \sum_{k=0}^{l-1}\mathbf{A}^{0,k}\mathbf{B}^{k,(c-1)}     \\
+        \vdots                                               & \ddots & \vdots                                                   \\
+        \sum_{k=0}^{l-1}\mathbf{A}^{(r-1),k}\mathbf{B}^{k,0} & \cdots & \sum_{k=0}^{l-1}\mathbf{A}^{(r-1),k}\mathbf{B}^{k,(c-1)}
+    \end{bmatrix}
 $$
 
-Ad ogni processo $P_{ij}$ vengono assegnati i blocchi $\mathbf{A}_{is}$ per cui $\bmod(s,l)=j$, e i blocchi $\mathbf{B}_{tj}$ per cui $\bmod(t,l)=i$.
-L'algoritmo si svolge in più passaggi nei quali i processi collaborano per combinare blocchi specifici. Ad ogni passo $k$, il processo che possiede il blocco $\mathbf{A}_{ik}$ lo invia alla propria riga e, analogamente, il possessore del blocco $\mathbf{B}_{kj}$ alla propria colonna.
-Una volta ricevuti i blocchi necessari, ogni processo può calcolare una parte del prodotto parziale della matrice $\mathbf{C}$, sommando il risultato a quello già accumulato. Ripetendo questa operazione, alla fine ogni processo avrà calcolato il suo blocco completo di $\mathbf{C}$.
+Ad ogni processo $P_{i,j}$ vengono assegnati i blocchi $\mathbf{A}^{i,s}$ per cui $\bmod(s,l)=j$, e i blocchi $\mathbf{B}^{t,j}$ per cui $\bmod(t,l)=i$.
+L'algoritmo si svolge in più passaggi nei quali i processi collaborano per combinare blocchi specifici. Ad ogni passo $k$, il processo che possiede il blocco $\mathbf{A}^{i,k}$ lo invia alla propria riga e, analogamente, il possessore del blocco $\mathbf{B}^{k,j}$ alla propria colonna.
+Una volta ricevuti i blocchi necessari, ogni processo può calcolare una parte del prodotto parziale della matrice $\mathbf{C}$, sommando il risultato a quello già accumulato. Ripetendo questa operazione, alla fine ogni processo avrà calcolato il suo blocco completo di $\mathbf{C}$. L'ultimo passaggio consiste nel ricomporre le diverse sottomatrici dai vari processi, risolvibile con diversi approcci a seconda di come sia necessario il risultato.
 
-\begin{algorithm}[h]
-    \caption{SUMMA for process $P_{ij}$}
+\begin{algorithm}[ht]
+    \caption{SUMMA for process $P_{i,j}$}
     \begin{algorithmic}
-        \State $\mathbf{C}_{ij} \gets 0$
+        \State $\mathbf{C}^{i,j} \gets 0$
         \State $l \gets \lcm(r,c)$
         \For{$k \gets 0$ \textbf{to} $l - 1$}
         \State $s \gets \bmod(k, r)$
         \State $t \gets \bmod(k, c)$
-        \State process $P_{it}$ broadcasts $\mathbf{A}_{ik}$ to its row
-        \State process $P_{sj}$ broadcasts $\mathbf{B}_{kj}$ to its column
-        \State $\mathbf{C}_{ij} \gets \mathbf{C}_{ij} + \mathbf{A}_{ik}\mathbf{B}_{kj}$
+        \State process $P_{it}$ broadcasts $\mathbf{A}^{i,k}$ to its row
+        \State process $P_{sj}$ broadcasts $\mathbf{B}^{k,j}$ to its column
+        \State $\mathbf{C}^{i,j} \gets \mathbf{C}^{i,j} + \mathbf{A}^{i,k}\mathbf{B}^{k,j}$
         \EndFor
     \end{algorithmic}
 \end{algorithm}
-
-L'ultimo passaggio consiste nel ricomporre le diverse sottomatrici dai vari processi, risolvibile con diversi approcci a seconda di come sia necessario il risultato.
 
 \medskip Nell'implementazione attuale, per semplicità, si richiede che le matrici $\mathbf{A}, \mathbf{B}$ in input debbano essere dei quadrati $n \times n$ dove $n = q \cdot \lcm(r,c)$ per qualche $q \ge 1$, allocate come array contigui \textit{row-major} e contenere già al loro interno (almeno) i dati dei blocchi assegnati al processo chiamante.
 
@@ -115,18 +113,18 @@ Siccome bisogna inviare porzioni di una matrice più grande, è stato necessario
 Le comunicazioni avvengono mediante le versioni bloccanti del broadcast. % TODO: perchè?
 
 $$
-    \begin{pmatrix}
+    \begin{bmatrix}
         \color{red} x_{00} & \color{red} x_{01} & x_{02} & \cdots & x_{0n} \\
         \color{red} x_{10} & \color{red} x_{11} & x_{12} & \cdots & x_{1n} \\
         x_{20}             & x_{21}             & x_{22} & \cdots & x_{2n} \\
                            &                    & \cdots &        &        \\
-    \end{pmatrix}
+    \end{bmatrix}
 $$
 
 $$
-    \begin{pmatrix}
+    \begin{bmatrix}
         \color{red} x_{00} & \color{red} x_{01} & x_{02} & \cdots & x_{0n} & \color{red} x_{10} & \color{red} x_{11} & x_{12} & \cdots
-    \end{pmatrix}
+    \end{bmatrix}
 $$
 
 Per quanto riguarda la ricomposizione di $\mathbf{C}$, è stato deciso che solo il processo 0 debba avere la matrice finale completa.
@@ -141,20 +139,22 @@ Una suddivisione semplice ma funzionale per qualsiasi numero di GPU è quella pe
 
 $$
     \mathbf{B}=
-    \begin{pmatrix}
-        \mathbf{B}_{0} & \cdots & \mathbf{B}_{n - 1} \\
-    \end{pmatrix}\\
+    \begin{bmatrix}
+        \mathbf{B}^{0} & \cdots & \mathbf{B}^{n - 1} \\
+    \end{bmatrix}\\
 $$
 $$
     \mathbf{C}=
-    \begin{pmatrix}
-        \mathbf{A}\mathbf{B}_0 & \cdots & \mathbf{A}\mathbf{B}_{n-1} \\
-    \end{pmatrix}
+    \begin{bmatrix}
+        \mathbf{A}\mathbf{B}^0 & \cdots & \mathbf{A}\mathbf{B}^{n-1} \\
+    \end{bmatrix}
 $$
 
 Questo meccanismo implica, ovviamente, che l'host debba essere in grado di avviare l'esecuzione su più GPU senza dover attendere prima il completamento di una di esse.
 Un metodo sicuramente valido è creare diversi thread a livello di processo, ognuno dei quali gestisca un determinato device.
 Tuttavia, CUDA offre anche varianti asincrone delle diverse funzioni e la possibilità di gestirle tramite \textit{stream}, ovvero code di operazioni da eseguire in sequenza. Possiamo quindi specificare, per ogni device, l'ordine delle funzioni da svolgere in uno stream apposito e infine aspettare la sincronizzazione di tutti gli stream.
+
+È bene far notare che i trasferimenti, anche se eseguiti tramite funzioni asincrone, sono bloccanti se la memoria host indirizzata non è \textit{page-locked}\cite{nvidiaCUDAProgramming}.
 
 \subsubsection{Kernel}
 
@@ -376,12 +376,12 @@ Per gestire l'esecuzione di un vasto numero di test con configurazioni eterogene
     \item \textbf{Iterazione sui File di Configurazione:} Lo script itera su tutti i file con estensione \texttt{.csv} presenti nella directory \texttt{tests/}. Ciascun file definisce una famiglia di test; al suo interno, ogni riga (esclusa l'intestazione) specifica i parametri per una singola esecuzione.
 
     \item \textbf{Generazione e Sottomissione dei Job:} Per ogni riga di un file di configurazione, che rappresenta un singolo test, lo script esegue i seguenti passaggi:
-    \begin{itemize}
-        \item \textbf{Parsing dei Parametri:} I valori per \texttt{matrix\_size}, \texttt{n\_proc}, \texttt{n\_gpu}, \texttt{tile\_width}, \texttt{grid\_width} e \texttt{grid\_height} vengono estratti dalla riga corrente.
-        \item \textbf{Creazione dello Script SLURM:} Viene generato dinamicamente uno script di sottomissione SLURM. Questo script contiene le direttive \texttt{\#SBATCH} necessarie per richiedere le risorse al cluster (nodi, task, GPU per task) e definire i file di output e di errore. Il comando di esecuzione principale è incapsulato da \texttt{nsys profile} per la profilazione, e l'eseguibile \texttt{bin/main.out} viene lanciato con i parametri specifici del test.
-        \item \textbf{Sottomissione del Job:} Lo script SLURM appena creato viene sottomesso al gestore di code tramite il comando \texttt{sbatch}. L'ID del job restituito da SLURM viene catturato e memorizzato.
-        \item \textbf{Gestione delle Dipendenze:} L'ID del job viene aggiunto a una lista di dipendenze che sarà utilizzata nella fase finale.
-    \end{itemize}
+          \begin{itemize}
+              \item \textbf{Parsing dei Parametri:} I valori per \texttt{matrix\_size}, \texttt{n\_proc}, \texttt{n\_gpu}, \texttt{tile\_width}, \texttt{grid\_width} e \texttt{grid\_height} vengono estratti dalla riga corrente.
+              \item \textbf{Creazione dello Script SLURM:} Viene generato dinamicamente uno script di sottomissione SLURM. Questo script contiene le direttive \texttt{\#SBATCH} necessarie per richiedere le risorse al cluster (nodi, task, GPU per task) e definire i file di output e di errore. Il comando di esecuzione principale è incapsulato da \texttt{nsys profile} per la profilazione, e l'eseguibile \texttt{bin/main.out} viene lanciato con i parametri specifici del test.
+              \item \textbf{Sottomissione del Job:} Lo script SLURM appena creato viene sottomesso al gestore di code tramite il comando \texttt{sbatch}. L'ID del job restituito da SLURM viene catturato e memorizzato.
+              \item \textbf{Gestione delle Dipendenze:} L'ID del job viene aggiunto a una lista di dipendenze che sarà utilizzata nella fase finale.
+          \end{itemize}
 
     \item \textbf{Job di Analisi e Plotting:} Una volta che tutti i job di calcolo sono stati sottomessi, lo script genera un ultimo job SLURM. Questo job ha una dipendenza di tipo \texttt{afterok} da tutti i job sottomessi in precedenza. Ciò significa che verrà eseguito solo dopo che tutti i test di calcolo saranno terminati con successo. Il compito di questo job finale è eseguire lo script Python \texttt{scripts/plots.py}, che si occupa di aggregare i dati dai file \texttt{.csv} generati e di creare i grafici di performance.
 \end{enumerate}
@@ -399,20 +399,19 @@ Per gestire l'esecuzione di un vasto numero di test con configurazioni eterogene
 L'architettura di NCCL è progettata per minimizzare la latenza e massimizzare il throughput delle comunicazioni tra GPU. Le sue caratteristiche principali includono:
 
 \begin{itemize}
-  \item \textbf{Topologia consapevole}: NCCL rileva automaticamente la topologia dell’hardware (PCIe, NVLink, InfiniBand) e costruisce percorsi di comunicazione ottimali.
-  \item \textbf{Asincronicità}: Le operazioni sono progettate per essere non bloccanti e integrate nel flusso CUDA, permettendo una sovrapposizione efficiente tra comunicazione e computazione.
-  \item \textbf{Comunicazione peer-to-peer}: Le GPU si scambiano direttamente i dati, evitando il passaggio attraverso la CPU e migliorando le prestazioni.
+    \item \textbf{Topologia consapevole}: NCCL rileva automaticamente la topologia dell’hardware (PCIe, NVLink, InfiniBand) e costruisce percorsi di comunicazione ottimali.
+    \item \textbf{Asincronicità}: Le operazioni sono progettate per essere non bloccanti e integrate nel flusso CUDA, permettendo una sovrapposizione efficiente tra comunicazione e computazione.
+    \item \textbf{Comunicazione peer-to-peer}: Le GPU si scambiano direttamente i dati, evitando il passaggio attraverso la CPU e migliorando le prestazioni.
 \end{itemize}
 
 \subsection{API Principali}
-Tra le principali API offerte da NCCL troviamo:\\
-
+Tra le principali API offerte da NCCL troviamo:
 \begin{itemize}
-  \item \texttt{ncclCommInitAll} / \texttt{ncclCommInitRank}: inizializzano i comunicatori per tutti i partecipanti al gruppo di comunicazione collettiva.
-  \item \texttt{ncclBroadcast}: invia un buffer da una GPU a tutte le altre.
-  \item \texttt{ncclAllReduce}: esegue una riduzione (es. somma) dei dati da tutte le GPU e distribuisce il risultato a tutte.
-  \item \texttt{ncclReduceScatter}, \texttt{ncclAllGather}, \texttt{ncclReduce}, ecc.: altre primitive collettive standard.
-  \item \texttt{ncclGroupStart} / \texttt{ncclGroupEnd}: permettono di raggruppare più operazioni per ottimizzarne l’esecuzione in pipeline.
+    \item \texttt{ncclCommInitAll} / \texttt{ncclCommInitRank}: inizializzano i comunicatori per tutti i partecipanti al gruppo di comunicazione collettiva.
+    \item \texttt{ncclBroadcast}: invia un buffer da una GPU a tutte le altre.
+    \item \texttt{ncclAllReduce}: esegue una riduzione (es. somma) dei dati da tutte le GPU e distribuisce il risultato a tutte.
+    \item \texttt{ncclReduceScatter}, \texttt{ncclAllGather}, \texttt{ncclReduce}, ecc.: altre primitive collettive standard.
+    \item \texttt{ncclGroupStart} / \texttt{ncclGroupEnd}: permettono di raggruppare più operazioni per ottimizzarne l’esecuzione in pipeline.
 \end{itemize}
 
 Tutte queste operazioni lavorano direttamente su buffer residenti in memoria device (GPU) e possono essere lanciate su CUDA streams, permettendo un'esecuzione concorrente con il calcolo.
@@ -428,9 +427,9 @@ NCCL è altamente ottimizzata per GPU moderne. In numerosi benchmark, NCCL ha di
 La scalabilità è uno dei punti di forza principali:
 
 \begin{itemize}
-  \item Ottimizzato per architetture con decine o centinaia di GPU.
-  \item Supporto trasparente per configurazioni eterogenee e distribuite.
-  \item Adattamento automatico alla topologia hardware.
+    \item Ottimizzato per architetture con decine o centinaia di GPU.
+    \item Supporto trasparente per configurazioni eterogenee e distribuite.
+    \item Adattamento automatico alla topologia hardware.
 \end{itemize}
 
 \subsubsection{Vantaggi su MPI}
@@ -442,25 +441,24 @@ L'interfaccia di NCCL è molto più semplice rispetto a quella di MPI, con un nu
 Nonostante i vantaggi, NCCL presenta alcune limitazioni importanti:
 
 \begin{itemize}
-  \item \textbf{Overhead iniziale}: la creazione dei comunicatori nella fase iniziale dell'esecuzione può essere costosa, specialmente in ambienti distribuiti.
-  \item \textbf{Meno flessibile di MPI}: NCCL non supporta comunicazioni punto-a-punto né tantomeno operazioni su topologie arbitrarie tra i processi.
-  \item \textbf{Limitazioni hardware}: molte ottimizzazioni richiedono il supporto di NVLink o InfiniBand, non sempre presenti nei cluster generici. In assenza di queste il vantaggio in termini di prestazioni può essere ridotto o addirittura nullo.
-  \item \textbf{Compatibilità}: la libreria è progettata esclusivamente per GPU NVIDIA e richiede versioni aggiornate del driver e dell’ambiente CUDA.
+    \item \textbf{Overhead iniziale}: la creazione dei comunicatori nella fase iniziale dell'esecuzione può essere costosa, specialmente in ambienti distribuiti.
+    \item \textbf{Meno flessibile di MPI}: NCCL non supporta comunicazioni punto-a-punto né tantomeno operazioni su topologie arbitrarie tra i processi.
+    \item \textbf{Limitazioni hardware}: molte ottimizzazioni richiedono il supporto di NVLink o InfiniBand, non sempre presenti nei cluster generici. In assenza di queste il vantaggio in termini di prestazioni può essere ridotto o addirittura nullo.
+    \item \textbf{Compatibilità}: la libreria è progettata esclusivamente per GPU NVIDIA e richiede versioni aggiornate del driver e dell’ambiente CUDA.
 \end{itemize}
 
 \subsection{Applicazione Potenziale all’Algoritmo SUMMA}
 
-Nel contesto dell’algoritmo SUMMA, NCCL sarebbe potuta essere utilizzata per ottimizzare le fasi di comunicazione collettiva.
-L’idea alla base era quella di sostituire le chiamate \texttt{MPI\_Bcast} per la propagazione dei pannelli delle matrici $A$ e $B$ lungo le righe e le colonne della griglia di processo, con due chiamate \texttt{ncclBroadcast} operate su due distinti comunicatori NCCL: uno per le righe e uno per le colonne. In particolare:
+Nel contesto dell’algoritmo SUMMA, NCCL potrebbe essere utilizzata per ottimizzare le fasi di comunicazione collettiva.
+L’idea alla base è sostituire le chiamate \texttt{MPI\_Bcast} per la propagazione dei pannelli delle matrici $\mathbf{A}$ e $\mathbf{B}$ lungo le righe e le colonne della griglia di processo, con due chiamate \texttt{ncclBroadcast} operate su due rispettivi comunicatori NCCL. In particolare:
 
 \begin{itemize}
-  \item Per ogni passo $k$, il pannello di $A$ nella riga $i$ viene trasmesso a tutti i processi della riga tramite \texttt{ncclBroadcast}.
-  \item Analogamente, il pannello di $B$ nella colonna $j$ viene trasmesso a tutti i processi della colonna tramite un’altra \texttt{ncclBroadcast}.
+    \item Per ogni passo $k$, il pannello di $\mathbf{A}$ nella riga $i$ viene trasmesso a tutti i processi della riga tramite \texttt{ncclBroadcast}.
+    \item Analogamente, il pannello di $\mathbf{B}$ nella colonna $j$ viene trasmesso a tutti i processi della colonna tramite un’altra \texttt{ncclBroadcast}.
 \end{itemize}
 
-Per implementare questa strategia sarebbe stato necessario creare due insiemi di comunicatori NCCL indipendenti, ciascuno rappresentante una delle due dimensioni della griglia logica di processi. L’utilizzo di \texttt{ncclGroupStart} e \texttt{ncclGroupEnd} avrebbe poi consentito l’accorpamento delle due comunicazioni in un’unica fase di sincronizzazione, migliorando ulteriormente l'efficienza.
-
-Il codice risultante avrebbe mantenuto la stessa logica computazionale di SUMMA, ma con l'intento di sfruttare le ottimizzazioni hardware/software di NCCL nelle fasi di comunicazione collettiva.
+Per implementare questa strategia sarebbe necessario creare due insiemi di comunicatori NCCL indipendenti, ciascuno rappresentante una delle due dimensioni della griglia logica di processi. L’utilizzo di \texttt{ncclGroupStart} e \texttt{ncclGroupEnd} consentirebbe l’accorpamento delle due comunicazioni in un’unica fase di sincronizzazione, migliorando ulteriormente l'efficienza.
+Il codice risultante manterrebbe la stessa logica computazionale di SUMMA, ma con l'intento di sfruttare le ottimizzazioni hardware/software di NCCL nelle fasi di comunicazione collettiva.
 
 Tuttavia, questa implementazione non è stata realizzata a causa della mancanza del supporto a NCCL nel cluster disponibile, rendendo non praticabile la sperimentazione.
 
