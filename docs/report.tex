@@ -59,8 +59,9 @@ A un livello più alto è necessario decomporre il problema a livello globale, o
 A un livello più basso, invece, entra in gioco l’effettiva esecuzione del prodotto tra i blocchi locali di matrici all’interno di ciascun nodo, sfruttando le GPU a disposizione. Si potrebbe ulteriormente suddividere questo livello in partizionamento delle matrice tra le diverse GPU ed esecuzione dei calcoli.
 
 \subsection{Processi}
-Il prodotto tra matrici viene eseguito a livello di processi tramite SUMMA (Scalable Universal Matrix Multiplication Algorithm)\cite{SUMMA}.
-Si dispongano i diversi processi in una griglia logica bidimensionale $r \times c$ e sia $l=\lcm(r, c)$. È possibile suddividere le matrici nel seguente modo:
+Esistono numerosi modi di eseguire un prodotto matriciale in maniera distribuita. In questo contesto è stato deciso di implementarlo tramite SUMMA (Scalable Universal Matrix Multiplication Algorithm), un algoritmo efficiente e scalabile in ambiente multi-nodo\cite{SUMMA}.
+
+Supponiamo di disporre i diversi processi partecipanti in una griglia logica bidimensionale $r \times c$ e sia $l=\lcm(r, c)$. È possibile suddividere le matrici nel seguente modo:
 $$
     \mathbf{A}=
     \begin{bmatrix}
@@ -133,10 +134,10 @@ Non è stata implementata una particolare gestione degli errori per evitare over
 
 \subsection{GPU}
 \subsubsection{Multi-GPU}
-Per sfruttare al massimo le risorse disponibili, è stato necessario sviluppare un sistema che permettesse la suddivisione del lavoro su più GPU presenti nella macchina.
+Ogni processo potrebbe avere a disposizione più di una GPU e sarebbe ragionevole cercare di sfruttare quanto più possibile queste risorse di calcolo.
 
-L'obiettivo consiste nel sovrapporre quanto più possibile il lavoro svolto dalle diverse GPU ed evitare conflitti di memoria che dovrebbero essere serializzati, in particolare la scrittura sulla matrice $\mathbf{C}$. Un'idea naturale è partizionare quest'ultima in modo che ogni device possa eseguire le operazioni in uno spazio separato dagli altri.
-Una suddivisione semplice ma funzionale per qualsiasi numero di GPU è quella per colonne: ogni GPU effettua quindi il prodotto tra la matrice $\mathbf{A}$ e la ``colonna'' assegnata della matrice $\mathbf{B}$.
+L'obiettivo consisterebbe nel distribuire il lavoro in modo equo ai diversi dispositivi per eseguirlo in parallelo. Ciò si traduce in trovare un metodo per evitare conflitti di memoria da serializzare, in particolare la scrittura sulla matrice $\mathbf{C}$. Un'idea naturale è partizionare quest'ultima in modo che ogni device possa eseguire le operazioni in uno spazio separato dagli altri.
+La suddivisione per colonne è semplice ma funzionale per qualsiasi numero di GPU: ognuna effettua quindi il prodotto tra la matrice $\mathbf{A}$ e la ``colonna'' assegnata della matrice $\mathbf{B}$.
 
 $$
     \mathbf{B}=
@@ -153,7 +154,8 @@ $$
 
 Questo meccanismo implica, ovviamente, che l'host debba essere in grado di avviare l'esecuzione su più GPU senza dover attendere prima il completamento di una di esse.
 Un metodo sicuramente valido è creare diversi thread a livello di processo, ognuno dei quali gestisca un determinato device.
-Tuttavia, CUDA offre anche varianti asincrone delle diverse funzioni e la possibilità di gestirle tramite \textit{stream}, ovvero code di operazioni da eseguire in sequenza. Possiamo quindi specificare, per ogni device, l'ordine delle funzioni da svolgere in uno stream apposito e infine aspettare la sincronizzazione di tutti gli stream.
+Tuttavia, CUDA offre anche varianti asincrone delle diverse funzioni e la possibilità di gestirle tramite \textit{stream}, ovvero code di operazioni da eseguire in sequenza. Operazioni in stream diversi possono essere eseguite in parallelo oppure alternate.
+Possiamo quindi specificare, per ogni device, l'ordine delle funzioni da svolgere in uno stream apposito e infine aspettare la sincronizzazione di tutti gli stream.
 
 È bene far notare che i trasferimenti, anche se eseguiti tramite funzioni asincrone, sono bloccanti se la memoria host indirizzata non è \textit{page-locked}\cite{nvidiaCUDAProgramming}.
 
@@ -378,6 +380,11 @@ Per gestire l'esecuzione di un vasto numero di test con configurazioni eterogene
 \subsection{Analisi delle misurazioni}
 
 \subsection{NVIDIA Nsight Compute}
+
+NVIDIA Nsight Compute è un profiler per CUDA che fornisce metriche dettagliate delle prestazioni e debug delle API tramite interfaccia utente e strumenti da riga di comando.
+% TODO: che altro?
+
+Purtroppo, a causa di problemi tecnici con il cluster, non è stato possibile valutare in maniera approfondita le metriche che sarebbero fornite da queste applicazioni.
 
 \section{Esplorazione di NCCL}
 
