@@ -1,5 +1,5 @@
 #include <math.h>
-#include <mpi/mpi.h>
+#include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
