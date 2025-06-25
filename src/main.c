@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-// #include "phpc_cuda.h"
+#include "phpc_cuda.h"
 #include "phpc_matrix_operations.h"
 #include "utils.h"
 
