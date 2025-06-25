@@ -1,6 +1,6 @@
 #!/bin/bash
 
-for dir in logs csv plots profiling bin; do
+for dir in logs csv plots profiling; do
     if [ -d "$dir" ]; then
         rm -rf "$dir"/*
     else
