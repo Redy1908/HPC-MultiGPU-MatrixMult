@@ -1,10 +1,12 @@
 #include <math.h>
-#include <mpi.h>
+#include <mpi/mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
-#include "phpc_matrix_operations.cuh"
-#include "utils.cuh"
+// #include "phpc_cuda.h"
+#include "phpc_matrix_operations.h"
+#include "utils.h"
 
 #define MPI_ASSERT(check)                                                       \
   if (!(check)) {                                                               \
@@ -50,8 +52,7 @@ int main(int argc, char *argv[]) {
     MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
   }
 
-  int gpu_count;
-  cudaGetDeviceCount(&gpu_count);
+  int gpu_count = phpc_get_device_count();
   MPI_ASSERT(gpu_count > 0);
 
   period[0] = 1;
