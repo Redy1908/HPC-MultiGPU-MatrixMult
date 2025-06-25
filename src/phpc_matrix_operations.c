@@ -22,11 +22,11 @@ int find_lcm(int a, int b) {
 }
 
 void phpc_gemm_iterative(const double *A, const double *B, double *C, int N) {
-  for (int i = 0; i < N; ++i) {
-    for (int j = 0; j < N; ++j) {
-      for (int k = 0; k < N; ++k) {
+  int i, j, k;
+  for (i = 0; i < N; ++i) {
+    for (j = 0; j < N; ++j) {
+      for (k = 0; k < N; ++k)
         C[i * N + j] += A[i * N + k] * B[k * N + j];
-      }
     }
   }
 }
