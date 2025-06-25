@@ -68,7 +68,8 @@ int phpc_gemm_summa(gemm_t f, MPI_Comm grid_comm, const double *A, const double 
   MPI_Type_commit(&block_b_type);
   MPI_Type_commit(&block_c_type);
 
-  for (int k = 0; k < lcm; k++) {
+  int k;
+  for (k = 0; k < lcm; k++) {
     int sender_column = k % dims[1];
     int sender_row = k % dims[0];
 
@@ -101,8 +102,9 @@ int phpc_gemm_summa(gemm_t f, MPI_Comm grid_comm, const double *A, const double 
   }
 
   if (rank == 0) {
+    int i;
     /* process 0 receives from all other processes */
-    for (int i = 1; i < size; i++) {
+    for (i = 1; i < size; i++) {
       int sender_coords[2];
       MPI_Cart_coords(grid_comm, i, 2, sender_coords);
 
