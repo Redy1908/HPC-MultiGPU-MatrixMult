@@ -67,7 +67,7 @@ for csv_file_path in "$CSV_FILES_DIR"/*.csv; do
 #SBATCH --mem-per-cpu="5G"
 #SBATCH --time=00:10:00
 #SBATCH --output=logs/output_${JOB_NAME_SUFFIX}.log
-#SBATCH --error=logs/error_${JOB_NAME_SUFFIX}.log
+#SBATCH --error=logs/error_${JOB_NAME_SUFFIX}.err
 #SBATCH --job-name=mat_mul
 
 srun bin/main.out ${MSIZE} ${TILE_WIDTH} ${GRID_WIDTH} ${GRID_HEIGHT} ${csv_filename_no_ext}
