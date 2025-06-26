@@ -49,7 +49,7 @@ Sviluppare un’applicazione per il prodotto tra matrici su cluster multi-nodo e
 Definiamo formalmente l'operazione di prodotto tra matrici.
 Siano date una matrice $\mathbf{A} \in \mathbb{R}^{m\times{k}}$ ed una seconda matrice $\mathbf{B} \in \mathbb{R}^{k\times{n}}$.
 Si definisce il prodotto matriciale di $\mathbf{A}$ per $\mathbf{B}$ la matrice $\mathbf{C}=\mathbf{A}\mathbf{B} \in \mathbb{R}^{m\times{n}}$ in cui ogni elemento $\mathbf{C}_{i,j}$ è dato dal prodotto scalare tra la $i$-esima riga di $\mathbf{A}$ per la $j$-esima colonna di $\mathbf{B}$:
-$$ \mathbf{C}_{i,j} = \sum_{l=0}^{\text{k}-1} \mathbf{A}_{i, l} \cdot \mathbf{B}_{l, j} $$
+$$ \mathbf{C}_{i,j} = \sum_{l=0}^{\text{k}-1} \mathbf{A}_{i, l} \mathbf{B}_{l, j} $$
 
 \section{Implementazione}
 In un ambiente multi-nodo e multi-GPU, il prodotto tra matrici può essere articolato in due livelli distinti ma interconnessi.
