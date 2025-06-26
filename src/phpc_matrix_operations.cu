@@ -14,7 +14,7 @@ void phpc_gemm_iterative(const double *A, const double *B, double *C, int N) {
   for (int i = 0; i < N; ++i) {
     for (int j = 0; j < N; ++j) {
       for (int k = 0; k < N; ++k) {
-        C[i * N + j] += A[i * N + k] * B[k * N + j];
+        C[i * N + k] += A[i * N + j] * B[j * N + k];
       }
     }
   }
