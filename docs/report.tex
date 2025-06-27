@@ -112,22 +112,23 @@ Una volta ricevuti i blocchi necessari, ogni processo può calcolare una parte d
 
 L'invio dei blocchi avviene tramite un'operazione di broadcast dello standard di comunicazione \textit{Message Passing Interface} (MPI)\footnote{\url{https://docs.open-mpi.org/en/v5.0.x/man-openmpi/man3/MPI_Bcast.3.html}}.
 Siccome bisogna inviare porzioni di una matrice più grande, è stato necessario creare dei tipi derivati appositi per tenere in considerazione gli spazi di memoria che intercorrono tra una riga e l'altra dei blocchi da inviare\footnote{\url{https://docs.open-mpi.org/en/v5.0.x/man-openmpi/man3/MPI_Type_vector.3.html}}.
-Le comunicazioni avvengono mediante le versioni bloccanti del broadcast. % TODO: perchè?
 
-$$
-    \begin{bmatrix}
-        \color{red} x_{00} & \color{red} x_{01} & x_{02} & \cdots & x_{0n} \\
-        \color{red} x_{10} & \color{red} x_{11} & x_{12} & \cdots & x_{1n} \\
-        x_{20}             & x_{21}             & x_{22} & \cdots & x_{2n} \\
-                           &                    & \cdots &        &        \\
-    \end{bmatrix}
-$$
+\begin{figure}[h]
+    $$
+        \begin{bmatrix}
+            \color{red} x_{00} & \color{red} x_{01} & x_{02} & \cdots & x_{0n} \\
+            \color{red} x_{10} & \color{red} x_{11} & x_{12} & \cdots & x_{1n} \\
+            x_{20}             & x_{21}             & x_{22} & \cdots & x_{2n} \\
+                               &                    & \cdots &        &        \\
+        \end{bmatrix}\\ \rightarrow\\
+        \begin{bmatrix}
+            \color{red} x_{00} & \color{red} x_{01} & x_{02} & \cdots & x_{0n} & \color{red} x_{10} & \color{red} x_{11} & x_{12} & \cdots
+        \end{bmatrix}
+    $$
+    \caption{Distribuzione logica (a sinistra) e fisica (a destra) dei dati}
+\end{figure}
 
-$$
-    \begin{bmatrix}
-        \color{red} x_{00} & \color{red} x_{01} & x_{02} & \cdots & x_{0n} & \color{red} x_{10} & \color{red} x_{11} & x_{12} & \cdots
-    \end{bmatrix}
-$$
+Le comunicazioni avvengono mediante le versioni bloccanti del broadcast: sono disponibili anche versioni asincrone che permettono di inviare i dati senza dover aspettare il termine, ma non sarebbe stato possibile sfruttarle in modo significativo dato che allo step successivo in ricezione ci sarebbe stata comunque un'attesa.
 
 Per quanto riguarda la ricomposizione di $\mathbf{C}$, è stato deciso che solo il processo 0 debba avere la matrice finale completa.
 Non è stata implementata una particolare gestione degli errori per evitare overhead nelle misurazioni dei tempi.
@@ -378,6 +379,7 @@ Per gestire l'esecuzione di un vasto numero di test con configurazioni eterogene
 \end{enumerate}
 
 \subsection{Analisi delle misurazioni}
+Purtroppo, a causa di problemi tecnici con la versione di OpenMPI presente sul cluster, non è stato possibile valutare in maniera significativa il programma. In particolare, la funzione usata per creare la griglia di processi\footnote{\url{https://docs.open-mpi.org/en/v5.0.x/man-openmpi/man3/MPI_Cart_create.3.html}} potrebbe fallire arbitrariamente causando la chiusura forzata dell'eseguibile. Sperimentazioni ausiliarie\footnote{\url{https://github.com/dev-shaa/mpi-test}} hanno portato eventualmente sempre allo stesso errore, il che fa presagire qualche problema in quella versione della libreria.
 
 \subsection{NVIDIA Nsight Compute}
 
