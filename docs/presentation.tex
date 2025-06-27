@@ -1,5 +1,8 @@
 \documentclass{beamer}
 \usepackage[italian]{babel}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{float}
 
 \DeclareMathOperator{\lcm}{lcm}
 
@@ -27,9 +30,11 @@
     \end{itemize}
 \end{frame}
 
-\begin{frame}{Implementazione}{Processi - SUMMA}
+\begin{frame}{Implementazione}{Processi}
     \begin{itemize}
         \item Si dispongono i processi in una griglia $r \times c$
+        \item Si dividono le matrici $\mathbf{A}$ e $\mathbf{B}$ in $r \times \lcm(r,c)$ e $\lcm(r,c) \times c$ blocchi rispettivamente
+        \item Si distribuiscono ciclicamente i blocchi delle matrici ai processi
     \end{itemize}
     \begin{figure}
         \includegraphics[width=0.5\linewidth]{imgs/summa.png}
@@ -37,7 +42,39 @@
     \end{figure}
 \end{frame}
 
-\begin{frame}{Implementazione}{Processi - SUMMA}
+\begin{frame}{Implementazione}{Processi}
+    \begin{itemize}
+        \item Per $\lcm(r,c)$ volte:
+              \begin{enumerate}
+                  \item Un processo invia il suo blocco di $\mathbf{A}$ alla propria riga
+                  \item Un processo invia il suo blocco di $\mathbf{B}$ alla propria colonna
+                  \item Viene sommato il prodotto parziale dei blocchi ricevuti
+              \end{enumerate}
+    \end{itemize}
+    \begin{figure}
+        \includegraphics[width=0.5\linewidth]{imgs/broadcast_1.jpg}
+        \caption{Esempio di broadcast}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Implementazione}{Processi}
+    \begin{algorithm}[H]
+        \caption{SUMMA for process $P_{i,j}$}
+        \begin{algorithmic}[1]
+            \State $\mathbf{C}^{i,j} \gets 0$
+            \State $l \gets \lcm(r,c)$
+            \For{$k \gets 0$ \textbf{to} $l - 1$}
+            \State $s \gets \bmod(k, r)$
+            \State $t \gets \bmod(k, c)$
+            \State process $P_{it}$ broadcasts $\mathbf{A}^{i,k}$ to its row
+            \State process $P_{sj}$ broadcasts $\mathbf{B}^{k,j}$ to its column
+            \State $\mathbf{C}^{i,j} \gets \mathbf{C}^{i,j} + \mathbf{A}^{i,k}\mathbf{B}^{k,j}$
+            \EndFor
+        \end{algorithmic}
+    \end{algorithm}
+\end{frame}
+
+\begin{frame}{Implementazione}{Processi}
     Semplificazioni e assunzioni effettuate:
     \begin{itemize}
         \item solo matrici quadrate $n \times n$, con $n$ multiplo di $\lcm(r,c)$
@@ -46,7 +83,7 @@
     \end{itemize}
 \end{frame}
 
-\begin{frame}{Implementazione}{MultiGPU}
+\begin{frame}{Implementazione}{GPU}
     \begin{itemize}
         \item Più GPU per processo: come suddividere il lavoro?
               \begin{itemize}
@@ -65,14 +102,14 @@
 \end{frame}
 
 
-\begin{frame}{Implementazione}{MultiGPU - CUDA}
+\begin{frame}{Implementazione}{GPU}
     \begin{itemize}
         \item CUDA stream: code di operazioni da gestire in sequenza
               \begin{itemize}
-                  \item Operazioni in stream diversi potrebbero essere eseguite in concorrenza
-                  \item Operazioni in stream diversi potrebbero essere alternate
+                  \item Operazioni in stream diversi potrebbero essere eseguite in concorrenza oppure alternate
                   \item Se non viene specificato uno stream viene usato lo stream 0 (bloccante)
               \end{itemize}
+              % \item Host crea stream per ogni device e specifica operazioni asincrone da eseguire
         \item I trasferimenti sono davvero asincroni solo se la memoria indirizzata è \textit{page-locked}
               \begin{itemize}
                   \item cudaMallocHost
@@ -81,7 +118,7 @@
     \end{itemize}
 \end{frame}
 
-\begin{frame}{Implementazione}{MultiGPU - cuBLAS}
+\begin{frame}{Implementazione}{GPU - cuBLAS}
     \begin{itemize}
         \item Problema del prodotto matriciale già ampiamente discusso
         \item Numerose librerie disponibili: \alert{cuBLAS}
