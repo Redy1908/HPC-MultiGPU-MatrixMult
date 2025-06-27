@@ -1,6 +1,5 @@
 \documentclass{beamer}
 \usepackage[italian]{babel}
-\usepackage{xcolor}
 
 \DeclareMathOperator{\lcm}{lcm}
 
@@ -13,10 +12,23 @@
     \titlepage
 \end{frame}
 
-\begin{frame}{Implementazione}{SUMMA}
+\begin{frame}{Implementazione}
+    In ambiente multi-nodo e multi-GPU, il prodotto tra matrici viene scomposto in due sottoproblemi:
+    \begin{enumerate}
+        \item gestione a livello globale tra i processi, ovvero come suddividere le matrici e quali comunicazioni eseguire;
+        \item gestione a livello locale all'interno di ciascun nodo, ovvero come eseguire il prodotto sfruttando le GPU a disposizione.
+    \end{enumerate}
+\end{frame}
+
+\begin{frame}{Implementazione}{Processi}
     \begin{itemize}
         \item Scalable Universal Matrix Multiplication Algorithm (SUMMA)
         \item Algoritmo efficiente e scalabile per ogni numero di processi
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Implementazione}{Processi - SUMMA}
+    \begin{itemize}
         \item Si dispongono i processi in una griglia $r \times c$
     \end{itemize}
     \begin{figure}
@@ -25,36 +37,35 @@
     \end{figure}
 \end{frame}
 
-\begin{frame}{Implementazione}{SUMMA}
+\begin{frame}{Implementazione}{Processi - SUMMA}
     Semplificazioni e assunzioni effettuate:
     \begin{itemize}
-        \item solo matrici quadrate $n \times n$
-        \item lato delle matrici perfettamente divisibile per $\lcm(r,c)$
-        \item matrici come array contigui \textit{row-major}
-        \item matrici di input di ogni processo contengono già i dati necessari
+        \item solo matrici quadrate $n \times n$, con $n$ multiplo di $\lcm(r,c)$
+        \item matrici di input di ogni processo come array contigui \textit{row-major} contenenti già i dati necessari
+        \item gestione degli errori quasi assente per evitare overhead
     \end{itemize}
 \end{frame}
 
-\begin{frame}{Implementazione}{Multi-GPU}
+\begin{frame}{Implementazione}{MultiGPU}
     \begin{itemize}
         \item Più GPU per processo: come suddividere il lavoro?
               \begin{itemize}
                   \item Vogliamo eseguire le operazioni in parallelo
-                        \begin{itemize}
+                        \begin{enumerate}
                             \item Evitare conflitti di memoria da serializzare
-                            \item Nessuna funzione bloccante
-                        \end{itemize}
+                            \item Nessuna funzione bloccante per l'host
+                        \end{enumerate}
               \end{itemize}
         \item Possibili soluzioni:
               \begin{itemize}
                   \item Pattern fork-join con ogni thread che gestisce una GPU
-                  \item \color{red} Utilizzo dei metodi async e degli stream di CUDA
+                  \item \alert{Utilizzo dei metodi async e degli stream di CUDA}
               \end{itemize}
     \end{itemize}
 \end{frame}
 
 
-\begin{frame}{Implementazione}{Multi-GPU - CUDA}
+\begin{frame}{Implementazione}{MultiGPU - CUDA}
     \begin{itemize}
         \item CUDA stream: code di operazioni da gestire in sequenza
               \begin{itemize}
@@ -70,15 +81,18 @@
     \end{itemize}
 \end{frame}
 
-\begin{frame}{Implementazione}{cuBLAS}
+\begin{frame}{Implementazione}{MultiGPU - cuBLAS}
     \begin{itemize}
-        \item BLAS: specifiche di routine di basso livello per operazioni algebriche (vettori, matrici)
-        \item cuBLAS: implementazione ottimizzata per GPU NVIDIA
+        \item Problema del prodotto matriciale già ampiamente discusso
+        \item Numerose librerie disponibili: \alert{cuBLAS}
               \begin{itemize}
-                  \item Per compatibilità con Fortran si aspetta ordine column-major
-                  \item $\mathbf{C}^T=(\mathbf{B}\mathbf{A})^T$
+                  \item implementazione ottimizzata per GPU NVIDIA delle specifiche BLAS
+                        \begin{itemize}
+                            \item Per compatibilità con Fortran si aspetta ordine column-major
+                            \item Basta calcolare $\mathbf{C}^T=(\mathbf{B}\mathbf{A})^T$
+                        \end{itemize}
+                  \item \alert{cuBLASXt}: estensione per ambienti multi-GPU
               \end{itemize}
-        \item \color{red} cuBLASXt: estensione per supportare ambienti multi-GPU
     \end{itemize}
 \end{frame}
 
