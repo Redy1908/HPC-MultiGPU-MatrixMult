@@ -133,5 +133,124 @@
     \end{itemize}
 \end{frame}
 
+\begin{frame}{Implementazione}{Kernel 1}
+    \begin{itemize}
+        \item Per implementare la moltiplicazione tra matrici in CUDA possiamo:
+            \begin{itemize}
+                \item Mappare i thread della griglia agli elementi della matrice di output in modo che ognugno sia responsabile del calcolo del singolo elemento.
+                \item Gli indici dell'elemento che ogni thread dovrà calcolare saranno:
+                    \begin{itemize}
+                        \item \textit{row = blockIdx.y × blockDim.y + threadIdx.y}
+                        \item \textit{col = blockIdx.x × blockDim.x + threadIdx.x}
+                    \end{itemize}
+            \end{itemize}
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Implementazione}{Kernel 1}
+    \begin{algorithm}[H]
+    \caption{Matrix Multiplication Kernel 1}
+    \begin{algorithmic}[1]
+    \State $\texttt{row} \gets \texttt{blockIdx.y} \cdot \texttt{blockDim.y} + \texttt{threadIdx.y}$
+    \State $\texttt{col} \gets \texttt{blockIdx.x} \cdot \texttt{blockDim.x} + \texttt{threadIdx.x}$
+    \If{$\texttt{row} < \texttt{Width}$ \textbf{and} $\texttt{col} < \texttt{Width}$}
+        \State $\texttt{Pval} \gets 0$
+        \For{$k \gets 0$ \textbf{to} $\texttt{Width} - 1$}
+            \State $\texttt{Pval} \gets \texttt{Pval} + M[\texttt{row} \cdot \texttt{Width} + k] \cdot N[k \cdot \texttt{Width} + \texttt{col}]$
+        \EndFor
+        \State $P[\texttt{row} \cdot \texttt{Width} + \texttt{col}] \gets \texttt{Pval}$
+    \EndIf
+    \end{algorithmic}
+    \end{algorithm}
+\end{frame}
+
+\begin{frame}{Implementazione}{Kernel 1}
+    \begin{figure}[H]
+        \centering
+        \begin{minipage}{0.48\textwidth}
+            \centering
+            \includegraphics[width=\linewidth]{imgs/matrix_division.png}
+            \caption{Figura 1: Divisione degli elementi in una griglia 2x2 con blocchi 2x2}
+        \end{minipage}
+        \hfill
+        \begin{minipage}{0.48\textwidth}
+            \centering
+            \includegraphics[width=\linewidth]{imgs/execution1.png}
+            \caption{Figura 2: Esempio di calcolo}
+        \end{minipage}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Implementazione}{Kernel 1}
+    \begin{itemize}
+        \item Ampi margini di miglioramento rispetto alla memoria
+        \begin{itemize}
+            \item La memoria globale è grande ma lenta
+             \item La memoria condivisa è piccola ma veloce
+        \end{itemize}
+    \end{itemize}
+    \begin{figure}[H]
+        \centering
+        \includegraphics[width=0.7\textwidth]{imgs/memory_access.png}
+    \end{figure}
+    \begin{itemize}
+        \item Idea: Partizionare i dati in sottoinsiemi chiamati tiles, in modo tale che ognuna di essa entri nella memoria condivisa. Tutti i thread collaboreranno al caricamento delle tiles in memoria condivisa prima della computazione. Stiamo riducendo gli accessi alla memoria globale di un fattore $\frac{1}{width}$
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Implementazione}{Kernel 2}
+    \begin{figure}[H]
+        \centering
+        \includegraphics[width=0.7\textwidth]{imgs/memory_access1.png}
+        \caption{Figura 3: Accessi alla memoria nuovo approccio}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Implementazione}{Kernel 2}
+    \begin{algorithm}[H]
+    \caption{Tiled Matrix Multiplication Kernel 2}
+    \begin{algorithmic}[1]
+    \State \texttt{Pval} $\gets$ 0
+    \For{$ph \gets 0$ \textbf{to} $\texttt{Width} / \texttt{TILE\_WIDTH} - 1$}
+        \State $M_{ds}[ty][tx] \gets M[Row \cdot Width + ph \cdot TILE\_WIDTH + tx]$
+        \State $N_{ds}[ty][tx] \gets N[(ph \cdot TILE\_WIDTH + ty) \cdot Width + Col]$
+        \State \texttt{syncthreads()}
+        \For{$k \gets 0$ \textbf{to} \texttt{TILE\_WIDTH} - 1}
+            \State \texttt{Pval} $\gets$ \texttt{Pval} $+$ $M_{ds}[ty][k] \cdot N_{ds}[k][tx]$
+        \EndFor
+        \State \texttt{syncthreads()}
+    \EndFor
+    \State $P[Row \cdot Width + Col] \gets$ \texttt{Pval}
+    \end{algorithmic}
+    \end{algorithm}
+\end{frame}
+
+\begin{frame}{Implementazione}{Kernel 2}
+\begin{algorithm}[H]
+\scriptsize
+\caption{Tiled Matrix Multiplication Kernel 2 con padding}
+\begin{algorithmic}[1]
+\State $Pval \gets 0$
+\For{$ph \gets 0$ \textbf{to} $\lceil W/T \rceil -1$}
+  \State $M_{ds}[ty][tx] \gets (Row<W~\&\&~ph\cdot T+tx<W)~?~M[Row\cdot W + ph\cdot T + tx]~:~0$
+  \State $N_{ds}[ty][tx] \gets (ph\cdot T+ty<W~\&\&~Col<W)~?~N[(ph\cdot T+ty)\cdot W + Col]~:~0$
+  \State \texttt{syncthreads()}
+  \For{$k \gets 0$ \textbf{to} $T-1$}
+    \State $Pval \mathrel{+}= M_{ds}[ty][k] \cdot N_{ds}[k][tx]$
+  \EndFor
+  \State \texttt{syncthreads()}
+\EndFor
+\If{$Row < W~\&\&~Col < W$}
+  \State $P[Row\cdot W + Col] \gets Pval$
+\EndIf
+\end{algorithmic}
+\end{algorithm}
+\end{frame}
+
+\begin{frame}{Implementazione}{Kernel 3}
+    \begin{itemize}
+        \item TODO
+    \end{itemize}
+\end{frame}
 
 \end{document}
