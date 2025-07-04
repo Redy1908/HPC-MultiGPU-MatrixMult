@@ -30,9 +30,11 @@ __global__ void gemm_kernel(double *A, double *B, double *C, int M, int N, int K
     int global_col_C = bx_tile * tile_width + tx;
 
     double c_value = 0.0;
+    int phases = K / tile_width + (K % tile_width != 0);
 
-    int phases = K / tile_width + (K / tile_width != 0);
     for (int phase = 0; phase < phases; ++phase) {
+      __syncthreads();
+
       if ((global_row_C < M) && (phase * tile_width + tx) < K)
         s_A[ty * tile_width + tx] = A[global_row_C * K + phase * tile_width + tx];
       else
@@ -47,8 +49,6 @@ __global__ void gemm_kernel(double *A, double *B, double *C, int M, int N, int K
 
       for (int k_tile = 0; k_tile < tile_width; ++k_tile)
         c_value += s_A[ty * tile_width + k_tile] * s_B[k_tile * tile_width + tx];
-
-      __syncthreads();
     }
 
     if ((global_row_C < M) && (global_col_C < N))
