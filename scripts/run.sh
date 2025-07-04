@@ -1,6 +1,6 @@
 #!/bin/bash
 
-for dir in logs csv plots profiling bin; do
+for dir in logs csv plots profiling; do
     if [ -d "$dir" ]; then
         rm -rf "$dir"/*
     else
@@ -8,23 +8,23 @@ for dir in logs csv plots profiling bin; do
     fi
 done
 
-MPI_INCLUDE_PATH="/usr/mpi/gcc/openmpi-4.1.0rc5/include"
-MPI_LIB_PATH="/usr/mpi/gcc/openmpi-4.1.0rc5/lib64"
+# MPI_INCLUDE_PATH="/usr/mpi/gcc/openmpi-4.1.0rc5/include"
+# MPI_LIB_PATH="/usr/mpi/gcc/openmpi-4.1.0rc5/lib64"
 
-echo " "
-echo "Compiling main.out..."
+# echo " "
+# echo "Compiling main.out..."
 
-nvcc src/main.cu src/utils.cu src/phpc_matrix_operations.cu -o bin/main.out \
-    -I"$MPI_INCLUDE_PATH" -L"$MPI_LIB_PATH" -Isrc \
-    -lcudart -lmpi -lcublas -lm -arch=sm_70 -lineinfo
+# nvcc src/main.cu src/utils.cu src/phpc_matrix_operations.cu -o bin/main.out \
+#     -I"$MPI_INCLUDE_PATH" -L"$MPI_LIB_PATH" -Isrc \
+#     -lcudart -lmpi -lcublas -lm -arch=sm_70 -lineinfo
 
-if [ $? -ne 0 ]; then
-    echo "Compilation failed. Exiting..."
-    exit 1
-fi
+# if [ $? -ne 0 ]; then
+#     echo "Compilation failed. Exiting..."
+#     exit 1
+# fi
 
-echo "Compilation successful."
-echo " "
+# echo "Compilation successful."
+# echo " "
 
 JOBS_IDS=()
 
