@@ -7,5 +7,5 @@ compile: cuda
 cuda:
 	nvcc -c src/*.cu -o cuda.o
 
-clean:
+clean: compile
 	rm cuda.o
