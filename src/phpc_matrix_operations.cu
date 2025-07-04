@@ -48,7 +48,7 @@ __global__ void gemm_kernel(double *A, double *B, double *C, int M, int N, int K
 
     double c_value = 0.0;
 
-    int phases = K / tile_width + (K / tile_width != 0);
+    int phases = K / tile_width + (K % tile_width != 0);
     for (int phase = 0; phase < phases; ++phase) {
       if ((global_row_C < M) && (phase * tile_width + tx) < K)
         s_A[ty * tile_width + tx] = A[global_row_C * K + phase * tile_width + tx];
