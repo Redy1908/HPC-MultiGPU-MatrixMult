@@ -3,6 +3,26 @@
 \usepackage{algorithm}
 \usepackage{algpseudocode}
 \usepackage{float}
+\usepackage{minted}
+\usepackage{amsmath}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage[table]{xcolor}
+\usepackage{amssymb}
+\usepackage{csquotes}
+\usepackage{hyperref}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage[table]{xcolor}
+\usepackage{minted}
+\usepackage{amsmath}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{amssymb}
 
 \DeclareMathOperator{\lcm}{lcm}
 
@@ -15,18 +35,26 @@
     \titlepage
 \end{frame}
 
+\begin{frame}{Introduzione}
+    \begin{itemize}
+        \item Sviluppo di applicazione per il prodotto tra matrici su cluster multi-nodo e multi-GPU per nodo
+        \item Il prodotto tra una matrice $\mathbf{A} \in \mathbb{R}^{m\times{k}}$ ed una seconda matrice $\mathbf{B} \in \mathbb{R}^{k\times{n}}$ è la matrice $\mathbf{C} \in \mathbb{R}^{m\times{n}}$ per cui: $$ \mathbf{C}_{i,j} = \sum_{l=0}^{\text{k}-1} \mathbf{A}_{i, l} \mathbf{B}_{l, j} $$
+    \end{itemize}
+\end{frame}
+
 \begin{frame}{Implementazione}
     In ambiente multi-nodo e multi-GPU, il prodotto tra matrici viene scomposto in due sottoproblemi:
     \begin{enumerate}
-        \item gestione a livello globale tra i processi, ovvero come suddividere le matrici e quali comunicazioni eseguire;
-        \item gestione a livello locale all'interno di ciascun nodo, ovvero come eseguire il prodotto sfruttando le GPU a disposizione.
+        \item gestione a livello globale tra i processi, ovvero come suddividere le matrici e quali comunicazioni eseguire
+        \item gestione a livello locale all'interno di ciascun nodo, ovvero come eseguire il prodotto sfruttando le GPU a disposizione
     \end{enumerate}
 \end{frame}
 
 \begin{frame}{Implementazione}{Processi}
+    A livello di nodi:
     \begin{itemize}
         \item Scalable Universal Matrix Multiplication Algorithm (SUMMA)
-        \item Algoritmo efficiente e scalabile per ogni numero di processi
+        \item Algoritmo efficiente e flessibile per ogni numero di processi
     \end{itemize}
 \end{frame}
 
@@ -37,8 +65,8 @@
         \item Si distribuiscono ciclicamente i blocchi delle matrici ai processi
     \end{itemize}
     \begin{figure}
-        \includegraphics[width=0.5\linewidth]{imgs/summa.png}
-        \caption{Distribuzione SUMMA}
+        \includegraphics[width=0.55\linewidth]{imgs/summa.png}
+        % \caption{Distribuzione SUMMA}
     \end{figure}
 \end{frame}
 
@@ -52,15 +80,15 @@
               \end{enumerate}
     \end{itemize}
     \begin{figure}
-        \includegraphics[width=0.5\linewidth]{imgs/broadcast_1.jpg}
-        \caption{Esempio di broadcast}
+        \includegraphics[width=0.75\linewidth]{imgs/broadcast_1.jpg}
+        % \caption{Esempio di broadcast}
     \end{figure}
 \end{frame}
 
 \begin{frame}{Implementazione}{Processi}
     \begin{algorithm}[H]
         \caption{SUMMA for process $P_{i,j}$}
-        \begin{algorithmic}[1]
+        \begin{algorithmic}
             \State $\mathbf{C}^{i,j} \gets 0$
             \State $l \gets \lcm(r,c)$
             \For{$k \gets 0$ \textbf{to} $l - 1$}
@@ -75,47 +103,107 @@
 \end{frame}
 
 \begin{frame}{Implementazione}{Processi}
-    Semplificazioni e assunzioni effettuate:
     \begin{itemize}
-        \item solo matrici quadrate $n \times n$, con $n$ multiplo di $\lcm(r,c)$
-        \item matrici di input di ogni processo come array contigui \textit{row-major} contenenti già i dati necessari
-        \item gestione degli errori quasi assente per evitare overhead
+        \item Dati da inviare sparsi in memoria
+              \begin{itemize}
+                  \item Utilizzo di MPI\_Type\_vector per creare tipi personalizzati
+              \end{itemize}
+        \item Comunicazioni eseguite tramite MPI\_Bcast bloccanti
+              \begin{itemize}
+                  \item Nessun vantaggio riscontrato nell'utilizzo di versioni asincrone
+              \end{itemize}
+    \end{itemize}
+
+    \begin{figure}[h]
+        \includegraphics[width=0.7\linewidth]{imgs/mpi_type_vector.png}
+        % \caption{Distribuzione dei dati}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Implementazione}{Processi}
+    \begin{itemize}
+        \item Semplificazioni e assunzioni effettuate:
+              \begin{itemize}
+                  \item solo matrici quadrate $n \times n$, con $n$ multiplo di $\lcm(r,c)$
+                  \item matrici di input di ogni processo come array contigui \textit{row-major} contenenti già i dati necessari
+                  \item gestione degli errori quasi assente per evitare overhead
+              \end{itemize}
     \end{itemize}
 \end{frame}
 
 \begin{frame}{Implementazione}{GPU}
     \begin{itemize}
-        \item Più GPU per processo: come suddividere il lavoro?
-              \begin{itemize}
-                  \item Vogliamo eseguire le operazioni in parallelo
-                        \begin{enumerate}
-                            \item Evitare conflitti di memoria da serializzare
-                            \item Nessuna funzione bloccante per l'host
-                        \end{enumerate}
-              \end{itemize}
-        \item Possibili soluzioni:
-              \begin{itemize}
-                  \item Pattern fork-join con ogni thread che gestisce una GPU
-                  \item \alert{Utilizzo dei metodi async e degli stream di CUDA}
-              \end{itemize}
+        \item Si passa al calcolo effettivo delle (sotto)matrici
+        \item Potenzialmente più GPU per processo
+        \item Come parallelizzare il lavoro?
+              \begin{enumerate}
+                  \item Evitare conflitti di memoria da serializzare
+                  \item Avviare contemporaneamente sui diversi device (senza attendere)
+              \end{enumerate}
     \end{itemize}
 \end{frame}
 
-
 \begin{frame}{Implementazione}{GPU}
+    \begin{enumerate}
+        \item Evitare conflitti di memoria da serializzare
+    \end{enumerate}
+    \medskip
+
     \begin{itemize}
-        \item CUDA stream: code di operazioni da gestire in sequenza
+        \item Evitare scritture concorrenti su $\mathbf{C}$
               \begin{itemize}
-                  \item Operazioni in stream diversi potrebbero essere eseguite in concorrenza oppure alternate
-                  \item Se non viene specificato uno stream viene usato lo stream 0 (bloccante)
+                  \item $\mathbf{A}$ e $\mathbf{B}$ solo in lettura quindi nessun problema
               \end{itemize}
-              % \item Host crea stream per ogni device e specifica operazioni asincrone da eseguire
-        \item I trasferimenti sono davvero asincroni solo se la memoria indirizzata è \textit{page-locked}
+        \item Partizionare $\mathbf{C}$ in blocchi separati gestiti ognuno da una GPU
               \begin{itemize}
-                  \item cudaMallocHost
-                  \item cudaHostRegister/cudaHostUnregister
+                  \item Suddivisione in colonne per semplicità
+                  \item $\mathbf{C}^i = \mathbf{A} \times  \mathbf{B}^i$
               \end{itemize}
     \end{itemize}
+
+    \begin{figure}[h]
+        \includegraphics[width=0.25\linewidth]{imgs/gpu.png}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Implementazione}{GPU}
+    \begin{enumerate}
+        \item[2.] Avviare contemporaneamente su diversi device (senza attendere)
+    \end{enumerate}
+    \medskip
+
+    \begin{itemize}
+        \item Pattern fork-join con ogni thread che gestisce una GPU...
+        \item ...oppure \alert{Utilizzo dei metodi async e degli stream di CUDA}
+              \begin{itemize}
+                  \item Stream: coda di operazioni da gestire in sequenza
+                  \item Host avvia lavoro su stream diversi per ogni GPU
+              \end{itemize}
+    \end{itemize}
+
+    \begin{figure}[h]
+        \includegraphics[width=0.8\linewidth]{imgs/cuda_stream.png}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Implementazione}{Processi}
+    \begin{algorithm}[H]
+        \caption{MultiGPU}
+        \begin{algorithmic}
+            \For{$i \gets 0$ \textbf{to} gpu count}
+            \State set device to $i$
+            \State create stream $i$
+            \State async copy $\mathbf{A}, \mathbf{B}^i, \mathbf{C}^i$ from host to device on stream $i$
+            \State async execute $\mathbf{C}^{i} \gets \mathbf{C}^{i} + \mathbf{A}\mathbf{B}^{i}$ on stream $i$
+            \State async copy $\mathbf{A}, \mathbf{B}^i, \mathbf{C}^i$ from device to host on stream $i$
+            \EndFor
+
+            \For{$i \gets 0$ \textbf{to} gpu count}
+            \State wait stream $i$
+            \State destroy stream $i$
+            \EndFor
+        \end{algorithmic}
+    \end{algorithm}
 \end{frame}
 
 \begin{frame}{Implementazione}{GPU - cuBLAS}
@@ -136,31 +224,31 @@
 \begin{frame}{Implementazione}{Kernel 1}
     \begin{itemize}
         \item Per implementare la moltiplicazione tra matrici in CUDA possiamo:
-            \begin{itemize}
-                \item Mappare i thread della griglia agli elementi della matrice di output in modo che ognugno sia responsabile del calcolo del singolo elemento.
-                \item Gli indici dell'elemento che ogni thread dovrà calcolare saranno:
-                    \begin{itemize}
-                        \item \textit{row = blockIdx.y × blockDim.y + threadIdx.y}
-                        \item \textit{col = blockIdx.x × blockDim.x + threadIdx.x}
-                    \end{itemize}
-            \end{itemize}
+              \begin{itemize}
+                  \item Mappare i thread della griglia agli elementi della matrice di output in modo che ognugno sia responsabile del calcolo del singolo elemento.
+                  \item Gli indici dell'elemento che ogni thread dovrà calcolare saranno:
+                        \begin{itemize}
+                            \item \textit{row = blockIdx.y × blockDim.y + threadIdx.y}
+                            \item \textit{col = blockIdx.x × blockDim.x + threadIdx.x}
+                        \end{itemize}
+              \end{itemize}
     \end{itemize}
 \end{frame}
 
 \begin{frame}{Implementazione}{Kernel 1}
     \begin{algorithm}[H]
-    \caption{Matrix Multiplication Kernel 1}
-    \begin{algorithmic}[1]
-    \State $\texttt{row} \gets \texttt{blockIdx.y} \cdot \texttt{blockDim.y} + \texttt{threadIdx.y}$
-    \State $\texttt{col} \gets \texttt{blockIdx.x} \cdot \texttt{blockDim.x} + \texttt{threadIdx.x}$
-    \If{$\texttt{row} < \texttt{Width}$ \textbf{and} $\texttt{col} < \texttt{Width}$}
-        \State $\texttt{Pval} \gets 0$
-        \For{$k \gets 0$ \textbf{to} $\texttt{Width} - 1$}
+        \caption{Matrix Multiplication Kernel 1}
+        \begin{algorithmic}[1]
+            \State $\texttt{row} \gets \texttt{blockIdx.y} \cdot \texttt{blockDim.y} + \texttt{threadIdx.y}$
+            \State $\texttt{col} \gets \texttt{blockIdx.x} \cdot \texttt{blockDim.x} + \texttt{threadIdx.x}$
+            \If{$\texttt{row} < \texttt{Width}$ \textbf{and} $\texttt{col} < \texttt{Width}$}
+            \State $\texttt{Pval} \gets 0$
+            \For{$k \gets 0$ \textbf{to} $\texttt{Width} - 1$}
             \State $\texttt{Pval} \gets \texttt{Pval} + M[\texttt{row} \cdot \texttt{Width} + k] \cdot N[k \cdot \texttt{Width} + \texttt{col}]$
-        \EndFor
-        \State $P[\texttt{row} \cdot \texttt{Width} + \texttt{col}] \gets \texttt{Pval}$
-    \EndIf
-    \end{algorithmic}
+            \EndFor
+            \State $P[\texttt{row} \cdot \texttt{Width} + \texttt{col}] \gets \texttt{Pval}$
+            \EndIf
+        \end{algorithmic}
     \end{algorithm}
 \end{frame}
 
@@ -184,10 +272,10 @@
 \begin{frame}{Implementazione}{Kernel 1}
     \begin{itemize}
         \item Ampi margini di miglioramento rispetto alla memoria
-        \begin{itemize}
-            \item La memoria globale è grande ma lenta
-             \item La memoria condivisa è piccola ma veloce
-        \end{itemize}
+              \begin{itemize}
+                  \item La memoria globale è grande ma lenta
+                  \item La memoria condivisa è piccola ma veloce
+              \end{itemize}
     \end{itemize}
     \begin{figure}[H]
         \centering
@@ -208,43 +296,43 @@
 
 \begin{frame}{Implementazione}{Kernel 2}
     \begin{algorithm}[H]
-    \caption{Tiled Matrix Multiplication Kernel 2}
-    \begin{algorithmic}[1]
-    \State \texttt{Pval} $\gets$ 0
-    \For{$ph \gets 0$ \textbf{to} $\texttt{Width} / \texttt{TILE\_WIDTH} - 1$}
-        \State $M_{ds}[ty][tx] \gets M[Row \cdot Width + ph \cdot TILE\_WIDTH + tx]$
-        \State $N_{ds}[ty][tx] \gets N[(ph \cdot TILE\_WIDTH + ty) \cdot Width + Col]$
-        \State \texttt{syncthreads()}
-        \For{$k \gets 0$ \textbf{to} \texttt{TILE\_WIDTH} - 1}
+        \caption{Tiled Matrix Multiplication Kernel 2}
+        \begin{algorithmic}[1]
+            \State \texttt{Pval} $\gets$ 0
+            \For{$ph \gets 0$ \textbf{to} $\texttt{Width} / \texttt{TILE\_WIDTH} - 1$}
+            \State $M_{ds}[ty][tx] \gets M[Row \cdot Width + ph \cdot TILE\_WIDTH + tx]$
+            \State $N_{ds}[ty][tx] \gets N[(ph \cdot TILE\_WIDTH + ty) \cdot Width + Col]$
+            \State \texttt{syncthreads()}
+            \For{$k \gets 0$ \textbf{to} \texttt{TILE\_WIDTH} - 1}
             \State \texttt{Pval} $\gets$ \texttt{Pval} $+$ $M_{ds}[ty][k] \cdot N_{ds}[k][tx]$
-        \EndFor
-        \State \texttt{syncthreads()}
-    \EndFor
-    \State $P[Row \cdot Width + Col] \gets$ \texttt{Pval}
-    \end{algorithmic}
+            \EndFor
+            \State \texttt{syncthreads()}
+            \EndFor
+            \State $P[Row \cdot Width + Col] \gets$ \texttt{Pval}
+        \end{algorithmic}
     \end{algorithm}
 \end{frame}
 
 \begin{frame}{Implementazione}{Kernel 2}
-\begin{algorithm}[H]
-\scriptsize
-\caption{Tiled Matrix Multiplication Kernel 2 con padding}
-\begin{algorithmic}[1]
-\State $Pval \gets 0$
-\For{$ph \gets 0$ \textbf{to} $\lceil W/T \rceil -1$}
-  \State $M_{ds}[ty][tx] \gets (Row<W~\&\&~ph\cdot T+tx<W)~?~M[Row\cdot W + ph\cdot T + tx]~:~0$
-  \State $N_{ds}[ty][tx] \gets (ph\cdot T+ty<W~\&\&~Col<W)~?~N[(ph\cdot T+ty)\cdot W + Col]~:~0$
-  \State \texttt{syncthreads()}
-  \For{$k \gets 0$ \textbf{to} $T-1$}
-    \State $Pval \mathrel{+}= M_{ds}[ty][k] \cdot N_{ds}[k][tx]$
-  \EndFor
-  \State \texttt{syncthreads()}
-\EndFor
-\If{$Row < W~\&\&~Col < W$}
-  \State $P[Row\cdot W + Col] \gets Pval$
-\EndIf
-\end{algorithmic}
-\end{algorithm}
+    \begin{algorithm}[H]
+        \scriptsize
+        \caption{Tiled Matrix Multiplication Kernel 2 con padding}
+        \begin{algorithmic}[1]
+            \State $Pval \gets 0$
+            \For{$ph \gets 0$ \textbf{to} $\lceil W/T \rceil -1$}
+            \State $M_{ds}[ty][tx] \gets (Row<W~\&\&~ph\cdot T+tx<W)~?~M[Row\cdot W + ph\cdot T + tx]~:~0$
+            \State $N_{ds}[ty][tx] \gets (ph\cdot T+ty<W~\&\&~Col<W)~?~N[(ph\cdot T+ty)\cdot W + Col]~:~0$
+            \State \texttt{syncthreads()}
+            \For{$k \gets 0$ \textbf{to} $T-1$}
+            \State $Pval \mathrel{+}= M_{ds}[ty][k] \cdot N_{ds}[k][tx]$
+            \EndFor
+            \State \texttt{syncthreads()}
+            \EndFor
+            \If{$Row < W~\&\&~Col < W$}
+            \State $P[Row\cdot W + Col] \gets Pval$
+            \EndIf
+        \end{algorithmic}
+    \end{algorithm}
 \end{frame}
 
 \begin{frame}{Implementazione}{Kernel 3}

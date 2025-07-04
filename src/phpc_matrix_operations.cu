@@ -128,6 +128,11 @@ void phpc_gemm_cuda(const double *a, int lda, const double *b, int ldb, double *
   double **dev_buffers_c = (double **)malloc(gpu_count * sizeof(double *));
   cudaStream_t *streams = (cudaStream_t *)malloc(gpu_count * sizeof(cudaStream_t));
 
+  /* unless memory is page-locked, memcpyAsync will default to blocking copy */
+  cudaHostRegister(a, m * lda * sizeof(double), cudaHostRegisterPortable);
+  cudaHostRegister(b, k * ldb * sizeof(double), cudaHostRegisterPortable);
+  cudaHostRegister(c, m * ldc * sizeof(double), cudaHostRegisterPortable);
+
   for (int gpu = 0; gpu < gpu_count; gpu++) {
     int dev_n = n / gpu_count + (gpu < n % gpu_count);
 
@@ -162,6 +167,10 @@ void phpc_gemm_cuda(const double *a, int lda, const double *b, int ldb, double *
     cudaStreamSynchronize(streams[gpu]);
     cudaStreamDestroy(streams[gpu]);
   }
+
+  cudaHostUnregister(c);
+  cudaHostUnregister(b);
+  cudaHostUnregister(a);
 
   free(streams);
   free(dev_buffers_c);
