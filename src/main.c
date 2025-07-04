@@ -131,7 +131,7 @@ int main(int argc, char *argv[]) {
       MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
     }
 
-    fprintf(csv_file, "matrix_size,n_proc,n_gpu,n_block,n_thread_per_block,method,time\n");
+    // fprintf(csv_file, "matrix_size,n_proc,n_gpu,n_block,n_thread_per_block,method,time\n");
   }
 
   if (rank == 0) {
@@ -154,16 +154,16 @@ int main(int argc, char *argv[]) {
   // TEST Iterative
   // ==================================================
   // FIXME: don't need to run this test every time if the only thing that changes is the matrices size
-  if (rank == 0) {
-    printf("  Running iterative test...\n");
-    memset(C, 0, N * N * sizeof(double));
+  // if (rank == 0) {
+  //   printf("  Running iterative test...\n");
+  //   memset(C, 0, N * N * sizeof(double));
 
-    start_time = get_cur_time();
-    phpc_gemm_iterative(A, B, C, N);
-    end_time = get_cur_time() - start_time;
+  //   start_time = get_cur_time();
+  //   phpc_gemm_iterative(A, B, C, N);
+  //   end_time = get_cur_time() - start_time;
 
-    log_to_csv(csv_file, N, 1, gpu_count, 0, 0, "ITERATIVE", end_time);
-  }
+  //   log_to_csv(csv_file, N, 1, gpu_count, 0, 0, "ITERATIVE", end_time);
+  // }
 
   // ==================================================
   // Test SUMMA CUDA
