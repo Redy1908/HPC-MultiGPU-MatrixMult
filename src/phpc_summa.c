@@ -6,7 +6,7 @@
 #include <math.h>
 #include <stdlib.h>
 
-#include "phpc_matrix_operations.cuh"
+#include "phpc_gemm.cuh"
 
 typedef void (*gemm_t)(const double *a, int lda, const double *b, int ldb, double *c, int ldc, int m, int k, int n, int gpu_count, int grid_width, int grid_height, int block_width);
 

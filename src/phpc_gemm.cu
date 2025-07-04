@@ -1,8 +1,7 @@
 #include <cuda_runtime.h>
 #include <stdio.h>
-// #include <stdlib.h>
 
-#include "phpc_matrix_operations.cuh"
+#include "phpc_gemm.cuh"
 
 __global__ void gemm_kernel(double *A, double *B, double *C, int M, int N, int K) {
   extern __shared__ double shared_mem[];
