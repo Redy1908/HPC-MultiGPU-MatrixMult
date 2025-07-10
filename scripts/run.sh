@@ -70,11 +70,7 @@ for csv_file_path in "$CSV_FILES_DIR"/*.csv; do
 #SBATCH --error=logs/error_${JOB_NAME_SUFFIX}.log
 #SBATCH --job-name=mat_mul
 
-srun nsys profile \
-    --force-overwrite true \
-    --gpu-metrics-device=all \
-    --output=profiling/profile_${JOB_NAME_SUFFIX}_procId:%q{SLURM_PROCID} \
-    bin/main.out ${MSIZE} ${TILE_WIDTH} ${GRID_WIDTH} ${GRID_HEIGHT} ${csv_filename_no_ext}
+srun bin/main.out ${MSIZE} ${TILE_WIDTH} ${GRID_WIDTH} ${GRID_HEIGHT} ${csv_filename_no_ext}
 EOF
             JOB_OUTPUT=$(sbatch ${SLURM_SCRIPT_NAME_TMP})
             JOB_ID=$(echo "$JOB_OUTPUT" | grep -o '[0-9]*$')
@@ -90,44 +86,44 @@ EOF
     } < "$csv_file_path"
 done
 
-echo " "
-if [ ${#JOBS_IDS[@]} -eq 0 ]; then
-    echo "No SLURM jobs were submitted."
-    echo "Skipping plot job submission."
-else
-    echo "All SLURM jobs submitted."
+# echo " "
+# if [ ${#JOBS_IDS[@]} -eq 0 ]; then
+#     echo "No SLURM jobs were submitted."
+#     echo "Skipping plot job submission."
+# else
+#     echo "All SLURM jobs submitted."
 
-    DEPENDENCY_STRING=$(IFS=:; echo "${JOBS_IDS[*]}")
+#     DEPENDENCY_STRING=$(IFS=:; echo "${JOBS_IDS[*]}")
 
-    cat > plot_job.slurm << EOF
-#!/bin/bash
-#SBATCH -p sequential
-#SBATCH --ntasks=1
-#SBATCH --cpus-per-task=1
-#SBATCH --mem="1G"
-#SBATCH --time=00:10:00
-#SBATCH --output=logs/analysis_output.log
-#SBATCH --error=logs/analysis_error.log
-#SBATCH --job-name=analysis
-#SBATCH --dependency=afterany:${DEPENDENCY_STRING}
+#     cat > plot_job.slurm << EOF
+# #!/bin/bash
+# #SBATCH -p sequential
+# #SBATCH --ntasks=1
+# #SBATCH --cpus-per-task=1
+# #SBATCH --mem="1G"
+# #SBATCH --time=00:10:00
+# #SBATCH --output=logs/analysis_output.log
+# #SBATCH --error=logs/analysis_error.log
+# #SBATCH --job-name=analysis
+# #SBATCH --dependency=afterany:${DEPENDENCY_STRING}
 
-source /nfsexports/SOFTWARE/anaconda3.OK/etc/profile.d/conda.sh
-conda activate base
+# source /nfsexports/SOFTWARE/anaconda3.OK/etc/profile.d/conda.sh
+# conda activate base
 
-python3 scripts/plots.py
-EOF
+# python3 scripts/plots.py
+# EOF
 
-    echo " "
-    echo "Plot job depending on all previous jobs..."
+#     echo " "
+#     echo "Plot job depending on all previous jobs..."
 
-    JOB_OUTPUT_PLOT=$(sbatch plot_job.slurm)
-    JOB_ID_PLOT=$(echo "$JOB_OUTPUT_PLOT" | grep -o '[0-9]*$')
-    if [ -n "$JOB_ID_PLOT" ]; then
-        echo "Submitting SLURM script: plot_job.slurm with Job ID: ${JOB_ID_PLOT}"
-    else
-        echo "Error submitting plot_job.slurm. sbatch output: $JOB_OUTPUT_PLOT"
-    fi
-    echo " "
+#     JOB_OUTPUT_PLOT=$(sbatch plot_job.slurm)
+#     JOB_ID_PLOT=$(echo "$JOB_OUTPUT_PLOT" | grep -o '[0-9]*$')
+#     if [ -n "$JOB_ID_PLOT" ]; then
+#         echo "Submitting SLURM script: plot_job.slurm with Job ID: ${JOB_ID_PLOT}"
+#     else
+#         echo "Error submitting plot_job.slurm. sbatch output: $JOB_OUTPUT_PLOT"
+#     fi
+#     echo " "
 
-    rm plot_job.slurm
-fi
+#     rm plot_job.slurm
+# fi

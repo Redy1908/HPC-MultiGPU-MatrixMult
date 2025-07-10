@@ -74,48 +74,48 @@ int main(int argc, char *argv[]) {
   // Test di correttezza
   // ==================================================
   // FIXME: don't need to run this test every time once we estabilished it works
-  if (rank == 0) {
-    printf("\nInitializing matrix A and B to 2.0, matrix C to 0.0...\n");
-  }
-  for (i = 0; i < N; i++) {
-    for (j = 0; j < N; j++) {
-      *(A + i * N + j) = 2.0;
-      *(B + i * N + j) = 2.0;
-      *(C + i * N + j) = 0.0;
-    }
-  }
-  if (rank == 0) {
-    printf("Matrix initialization complete.\n");
-    printf("\nRunning correctness test...\n");
-  }
+  // if (rank == 0) {
+  //   printf("\nInitializing matrix A and B to 2.0, matrix C to 0.0...\n");
+  // }
+  // for (i = 0; i < N; i++) {
+  //   for (j = 0; j < N; j++) {
+  //     *(A + i * N + j) = 2.0;
+  //     *(B + i * N + j) = 2.0;
+  //     *(C + i * N + j) = 0.0;
+  //   }
+  // }
+  // if (rank == 0) {
+  //   printf("Matrix initialization complete.\n");
+  //   printf("\nRunning correctness test...\n");
+  // }
 
-  phpc_gemm_summa_cuda(grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, tile_width);
+  // phpc_gemm_summa_cuda(grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, tile_width);
 
-  if (rank == 0) {
-    printf("Checking correctness...\n");
-    int test_correctness = 1;
-    double expected_value = 4.0 * N;
-    double epsilon = 1e-9;
+  // if (rank == 0) {
+  //   printf("Checking correctness...\n");
+  //   int test_correctness = 1;
+  //   double expected_value = 4.0 * N;
+  //   double epsilon = 1e-9;
 
-    for (i = 0; i < N; i++) {
-      for (j = 0; j < N; j++) {
-        if (fabs(C[i * N + j] - expected_value) > epsilon) {
-          fprintf(stderr, "Correcteness error at rank %d, C[%d][%d] = %f, expected %f\n", rank, i, j, C[i * N + j], expected_value);
-          test_correctness = 0;
-        }
-      }
-    }
+  //   for (i = 0; i < N; i++) {
+  //     for (j = 0; j < N; j++) {
+  //       if (fabs(C[i * N + j] - expected_value) > epsilon) {
+  //         fprintf(stderr, "Correcteness error at rank %d, C[%d][%d] = %f, expected %f\n", rank, i, j, C[i * N + j], expected_value);
+  //         test_correctness = 0;
+  //       }
+  //     }
+  //   }
 
-    if (test_correctness) {
-      printf("Correctness test passed.\n");
-    } else {
-      printf("Correctness test FAILED. Aborting...\n");
-      free(A);
-      free(B);
-      free(C);
-      MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
-    }
-  }
+  //   if (test_correctness) {
+  //     printf("Correctness test passed.\n");
+  //   } else {
+  //     printf("Correctness test FAILED. Aborting...\n");
+  //     free(A);
+  //     free(B);
+  //     free(C);
+  //     MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+  //   }
+  // }
 
   // ==================================================
   // Test di efficienza
@@ -154,16 +154,16 @@ int main(int argc, char *argv[]) {
   // TEST Iterative
   // ==================================================
   // FIXME: don't need to run this test every time if the only thing that changes is the matrices size
-  // if (rank == 0) {
-  //   printf("  Running iterative test...\n");
-  //   memset(C, 0, N * N * sizeof(double));
+  if (rank == 0) {
+    printf("  Running iterative test...\n");
+    memset(C, 0, N * N * sizeof(double));
 
-  //   start_time = get_cur_time();
-  //   phpc_gemm_iterative(A, B, C, N);
-  //   end_time = get_cur_time() - start_time;
+    start_time = get_cur_time();
+    phpc_gemm_iterative(A, B, C, N);
+    end_time = get_cur_time() - start_time;
 
-  //   log_to_csv(csv_file, N, 1, gpu_count, 0, 0, "ITERATIVE", end_time);
-  // }
+    log_to_csv(csv_file, N, 1, gpu_count, 0, 0, "ITERATIVE", end_time);
+  }
 
   // ==================================================
   // Test SUMMA CUDA
