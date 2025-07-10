@@ -10,3 +10,4 @@
 #SBATCH --job-name=test
 
 srun bin/main.out 512 32 1 1 testA2
+wait
