@@ -1,7 +1,7 @@
 #ifndef _PHPC_SUMMA_H
 #define _PHPC_SUMMA_H
 
-#include <mpi/mpi.h>
+#include <mpi.h>
 
 void phpc_gemm_iterative(const double *A, const double *B, double *C, int N);
 
