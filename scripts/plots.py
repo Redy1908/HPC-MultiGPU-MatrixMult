@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 from pathlib import Path
 import os
 import glob
@@ -133,8 +134,6 @@ def plot_case_group(case_tag, dfs):
 
 
 def plot_case_a3(dfs):
-    from mpl_toolkits.mplot3d import Axes3D
-    import matplotlib.pyplot as plt
 
     df = pd.concat(dfs, ignore_index=True)
     df = preprocess(df)  # aggiunge 'total_threads'
