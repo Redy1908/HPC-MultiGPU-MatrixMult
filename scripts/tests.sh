@@ -2,7 +2,7 @@
 
 run() {
     filename="$6_N$2_T$1_G1_TW$3_GW$4_GH$5"
-    mpirun -n $1 bin/main.out $2 $3 $4 $5 $filename
+    ncu mpirun -n $1 bin/main.out $2 $3 $4 $5 $filename
 }
 
 run 1 128 32 1 1 testA
