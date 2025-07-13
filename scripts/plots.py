@@ -53,7 +53,16 @@ def plot_case_group(case_tag, dfs):
     iterative_time = df[df['method'] == 'ITERATIVE']['time'].mean()
     cublas_data = df[df['method'] == 'SUMMA_CUBLAS']
 
-    x_param = 'n_block' if case_tag in ['a1', 'b', 'd'] else 'n_thread_per_block'
+    x_param_map = {
+        'a1': 'n_proc',
+        'a2': 'n_thread_per_block',
+        'b': 'n_proc',
+        'c': 'total_threads',
+        'd': 'n_proc'
+    }
+    x_param = x_param_map.get(case_tag)
+    if x_param is None:
+        raise ValueError(f"Unexpected case_tag: {case_tag}")
 
     plt.figure()
     for method in df['method'].unique():
@@ -128,19 +137,19 @@ def plot_case_a3(dfs):
     import matplotlib.pyplot as plt
 
     df = pd.concat(dfs, ignore_index=True)
-    df = preprocess(df)
+    df = preprocess(df)  # aggiunge 'total_threads'
 
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
-    ax.scatter(df['n_block'], df['n_thread_per_block'], df['time'], c='b', marker='o')
+    ax.scatter(df['n_proc'], df['total_threads'], df['time'], c='b', marker='o')
 
     min_row = df.loc[df['time'].idxmin()]
-    print(f"[a3] Min time: {min_row['time']}s @ n_block={min_row['n_block']}, n_thread_per_block={min_row['n_thread_per_block']}, method={min_row['method']}")
+    print(f"[a3] Min time: {min_row['time']}s @ n_proc={min_row['n_proc']}, total_threads={min_row['total_threads']}, method={min_row['method']}")
 
-    ax.set_xlabel('n_block')
-    ax.set_ylabel('n_thread_per_block')
+    ax.set_xlabel('n_proc')
+    ax.set_ylabel('total_threads')
     ax.set_zlabel('time')
-    ax.set_title('Caso a.3 - Tempo rispetto a n_block e n_thread_per_block')
+    ax.set_title('Caso a.3 - Tempo rispetto a n_proc e total_threads')
     plt.savefig("plots/metrics_a3.png")
     plt.close()
 
