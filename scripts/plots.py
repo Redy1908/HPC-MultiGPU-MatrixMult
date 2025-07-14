@@ -167,7 +167,6 @@ def main():
     print("Caricamento CSV...")
     grouped = group_files_by_case()
 
-    # Definisci i nomi delle colonne nell'ordine corretto
     column_names = [
         "matrix_size",
         "n_proc",
@@ -182,7 +181,6 @@ def main():
         if not file_list:
             continue
         print(f"Analisi per caso {case_tag} con {len(file_list)} CSV")
-        # Istruisci pandas a usare i nomi di colonna specificati
         dfs = [pd.read_csv(f, header=None, names=column_names) for f in file_list]
 
         if case_tag == "a3":
