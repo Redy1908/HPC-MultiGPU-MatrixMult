@@ -1,5 +1,5 @@
-#ifndef _PHPC_MATRIX_OPERATIONS
-#define _PHPC_MATRIX_OPERATIONS
+#ifndef _PHPC_SUMMA_H
+#define _PHPC_SUMMA_H
 
 #include <mpi.h>
 

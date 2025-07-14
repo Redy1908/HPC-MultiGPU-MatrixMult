@@ -1,15 +1,17 @@
+#include <cuda_runtime.h>
 #include <math.h>
 #include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
-#include "phpc_matrix_operations.cuh"
-#include "utils.cuh"
+#include "phpc_summa.h"
+#include "utils.h"
 
-#define MPI_ASSERT(check)                                                       \
-  if (!(check)) {                                                               \
-    fprintf(stderr, "Check at " __FILE__ " line %d failed: " #check, __LINE__); \
-    MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);                                    \
+#define MPI_ASSERT(check)                                              \
+  if (!(check)) {                                                      \
+    fprintf(stderr, "Check at " __FILE__ " line %d failed", __LINE__); \
+    MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);                           \
   }
 
 int main(int argc, char *argv[]) {
@@ -129,7 +131,7 @@ int main(int argc, char *argv[]) {
       MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
     }
 
-    fprintf(csv_file, "matrix_size,n_proc,n_gpu,n_block,n_thread_per_block,method,time\n");
+    // fprintf(csv_file, "matrix_size,n_proc,n_gpu,n_block,n_thread_per_block,method,time\n");
   }
 
   if (rank == 0) {
