@@ -2,7 +2,11 @@
 
 run() {
     filename="$6_N$2_T$1_G1_TW$3_GW$4_GH$5"
-    sudo ncu mpirun --oversubscribe -n $1 bin/main.out $2 $3 $4 $5 $filename
+    
+    report_path="profiling/${filename}.nsys-rep"
+
+    nsys profile -o "$report_path" --force-overwrite=true --cuda-event-trace=false \
+    /usr/local/openmpi/bin/mpirun --oversubscribe -n $1 bin/main.out $2 $3 $4 $5 $filename
 }
 
 run 1 1024 32 1 1 testA
