@@ -60,7 +60,7 @@ def plot_case_group(case_tag, dfs):
 
     x_param_map = {
         "a1": "n_proc",
-        "a2": "n_thread_per_block",
+        "a2": "total_threads",
         "b": "n_proc",
         "c": "total_threads",
         "d": "n_proc",
@@ -82,7 +82,7 @@ def plot_case_group(case_tag, dfs):
 
     if not cublas_data.empty:
         y_vals = [cublas_data["time"].mean()] * len(x_vals)
-        plt.plot(x_vals, y_vals, linestyle="--", label="SUMMA_CUBLAS")
+        plt.plot(x_vals, y_vals, linestyle="--", label="CUBLAS_MEAN")
 
     plt.xlabel(x_param)
     plt.ylabel("Tempo (s)")
@@ -100,19 +100,11 @@ def plot_case_group(case_tag, dfs):
         mdata = mdata.sort_values(by=x_param)
         mdata["speedup"] = T1 / mdata["time"]
         mdata["efficiency"] = mdata["speedup"] / mdata["total_threads"]
-        if case_tag not in ["a1", "a2"]:
-            mdata["scaled_speedup"] = (mdata["matrix_size"] ** 3) / (T1 * mdata["time"])
-            mdata["scaled_efficiency"] = (
-                mdata["scaled_speedup"] / mdata["total_threads"]
-            )
         mdata["gflops"] = (2 * (mdata["matrix_size"] ** 3)) / (mdata["time"] * 1e9)
         mdata.to_csv(f"plots/metrics_{case_tag}_{method}.csv", index=False)
 
         plt.figure()
         plt.plot(mdata[x_param], mdata["speedup"], label="Speed-up")
-        if case_tag not in ["a1", "a2"]:
-            plt.plot(mdata[x_param], mdata["scaled_speedup"], label="Speed-up scalato")
-        plt.xlabel(x_param)
         plt.ylabel("Speed-up")
         plt.title(f"Speed-up {method} - Caso {case_tag}")
         plt.legend()
@@ -121,10 +113,6 @@ def plot_case_group(case_tag, dfs):
 
         plt.figure()
         plt.plot(mdata[x_param], mdata["efficiency"], label="Efficienza")
-        if case_tag not in ["a1", "a2"]:
-            plt.plot(
-                mdata[x_param], mdata["scaled_efficiency"], label="Efficienza scalata"
-            )
         plt.xlabel(x_param)
         plt.ylabel("Efficienza")
         plt.title(f"Efficienza {method} - Caso {case_tag}")
