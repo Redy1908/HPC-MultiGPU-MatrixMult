@@ -134,21 +134,24 @@ int main(int argc, char *argv[]) {
     // fprintf(csv_file, "matrix_size,n_proc,n_gpu,n_block,n_thread_per_block,method,time\n");
   }
 
-  if (rank == 0) {
-    printf("\nInitializing matrix A and B to random values, matrix C to 0.0...\n");
-  }
-  srand(0);
-  for (i = 0; i < N; i++) {
-    for (j = 0; j < N; j++) {
-      *(A + i * N + j) = (double)rand() / RAND_MAX;
-      *(B + i * N + j) = (double)rand() / RAND_MAX;
-    }
-  }
+  for (i = 0; i < N * N; i++)
+    A[i] = B[i] = i;
 
-  if (rank == 0) {
-    printf("Matrix initialization complete.\n");
-    printf("\nRunning tests:\n");
-  }
+  // if (rank == 0) {
+  //   printf("\nInitializing matrix A and B to random values, matrix C to 0.0...\n");
+  // }
+  // srand(0);
+  // for (i = 0; i < N; i++) {
+  //   for (j = 0; j < N; j++) {
+  //     *(A + i * N + j) = (double)rand() / RAND_MAX;
+  //     *(B + i * N + j) = (double)rand() / RAND_MAX;
+  //   }
+  // }
+
+  // if (rank == 0) {
+  //   printf("Matrix initialization complete.\n");
+  //   printf("\nRunning tests:\n");
+  // }
 
   // ==================================================
   // TEST Iterative
@@ -168,8 +171,8 @@ int main(int argc, char *argv[]) {
   // ==================================================
   // Test SUMMA CUDA
   // ==================================================
-  if (rank == 0) printf("  Running SUMMA CUDA test...\n");
-  memset(C, 0, N * N * sizeof(double));
+  // if (rank == 0) printf("  Running SUMMA CUDA test...\n");
+  // memset(C, 0, N * N * sizeof(double));
   MPI_Barrier(MPI_COMM_WORLD);
 
   start_time = get_cur_time();
@@ -182,8 +185,8 @@ int main(int argc, char *argv[]) {
   // ==================================================
   // Test SUMMA CUBLAS with the current tile width and grid size
   // ==================================================
-  if (rank == 0) printf("  Running SUMMA CUBLAS test...\n");
-  memset(C, 0, N * N * sizeof(double));
+  // if (rank == 0) printf("  Running SUMMA CUBLAS test...\n");
+  // memset(C, 0, N * N * sizeof(double));
   MPI_Barrier(MPI_COMM_WORLD);
 
   start_time = get_cur_time();

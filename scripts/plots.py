@@ -1,11 +1,14 @@
 import pandas as pd
-import numpy as np
+
+# import numpy as np
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-from pathlib import Path
+
+# from mpl_toolkits.mplot3d import Axes3D
+# from pathlib import Path
 import os
-import glob
-import csv
+
+# import glob
+# import csv
 
 column_names = [
     "matrix_size",
@@ -20,136 +23,136 @@ column_names = [
 ]
 
 
-def group_files_by_case():
-    csv_dir = Path("csv")
-    csv_files = glob.glob(os.path.join(csv_dir, "*.csv"))
+# def group_files_by_case():
+#     csv_dir = Path("csv")
+#     csv_files = glob.glob(os.path.join(csv_dir, "*.csv"))
 
-    grouped = {
-        "a1": [],
-        "a2": [],
-        "b": [],
-        "c": [],
-        "d": [],
-        "a3": [],  # speciale: unione di a1 + a2
-    }
+#     grouped = {
+#         "a1": [],
+#         "a2": [],
+#         "b": [],
+#         "c": [],
+#         "d": [],
+#         "a3": [],  # speciale: unione di a1 + a2
+#     }
 
-    for file in csv_files:
-        fname = Path(file).name
-        if fname.startswith("testA2"):
-            grouped["a2"].append(file)
-            grouped["a3"].append(file)
-        elif fname.startswith("testA1"):
-            grouped["a1"].append(file)
-            grouped["a3"].append(file)
-        elif fname.startswith("testB"):
-            grouped["b"].append(file)
-        elif fname.startswith("testC"):
-            grouped["c"].append(file)
-        elif fname.startswith("testD"):
-            grouped["d"].append(file)
+#     for file in csv_files:
+#         fname = Path(file).name
+#         if fname.startswith("testA2"):
+#             grouped["a2"].append(file)
+#             grouped["a3"].append(file)
+#         elif fname.startswith("testA1"):
+#             grouped["a1"].append(file)
+#             grouped["a3"].append(file)
+#         elif fname.startswith("testB"):
+#             grouped["b"].append(file)
+#         elif fname.startswith("testC"):
+#             grouped["c"].append(file)
+#         elif fname.startswith("testD"):
+#             grouped["d"].append(file)
 
-    return grouped
-
-
-def plot_case_group(case_tag, dfs):
-    os.makedirs("plots", exist_ok=True)
-    df = pd.concat(dfs, ignore_index=True)
-    df = preprocess(df)
-
-    iterative_time = df[df["method"] == "ITERATIVE"]["time"].mean()
-    cublas_data = df[df["method"] == "SUMMA_CUBLAS"]
-
-    x_param_map = {
-        "a1": "n_proc",
-        "a2": "total_threads",
-        "b": "n_proc",
-        "c": "total_threads",
-        "d": "n_proc",
-    }
-    x_param = x_param_map.get(case_tag)
-    if x_param is None:
-        raise ValueError(f"Unexpected case_tag: {case_tag}")
-
-    plt.figure()
-    # for method in df["method"].unique():
-    #     if method == "ITERATIVE":
-    #         continue
-    #     mgroup = df[df["method"] == method]
-    #     mgroup = mgroup.sort_values(by=x_param)
-    #     plt.plot(mgroup[x_param], mgroup["time"], label=method)
-
-    x_vals = sorted(df[x_param].unique())
-    plt.plot(x_vals, [iterative_time] * len(x_vals), linestyle="--", label="ITERATIVE")
-
-    # if not cublas_data.empty:
-    #     y_vals = [cublas_data["time"].mean()] * len(x_vals)
-    #     plt.plot(x_vals, y_vals, linestyle="--", label="CUBLAS_MEAN")
-
-    plt.xlabel("Processi")
-    plt.ylabel("Tempo (s)")
-    plt.title(f"Caso {case_tag}")
-    plt.legend()
-    plt.savefig(f"plots/caso_{case_tag}.png")
-    plt.close()
-
-    # Metriche
-    # T1 = iterative_time
-    # for method in df["method"].unique():
-    #     if method == "ITERATIVE":
-    #         continue
-    #     mdata = df[df["method"] == method].copy()
-    #     mdata = mdata.sort_values(by=x_param)
-    #     mdata["speedup"] = T1 / mdata["time"]
-    #     mdata["efficiency"] = mdata["speedup"] / mdata["total_threads"]
-    #     mdata["gflops"] = (2 * (mdata["matrix_size"] ** 3)) / (mdata["time"] * 1e9)
-    #     mdata.to_csv(f"plots/metrics_{case_tag}_{method}.csv", index=False)
-
-    #     plt.figure()
-    #     plt.plot(mdata[x_param], mdata["speedup"], label="Speed-up")
-    #     plt.ylabel("Speed-up")
-    #     plt.title(f"Speed-up {method} - Caso {case_tag}")
-    #     plt.legend()
-    #     plt.savefig(f"plots/speedup_{case_tag}_{method}.png")
-    #     plt.close()
-
-    #     plt.figure()
-    #     plt.plot(mdata[x_param], mdata["efficiency"], label="Efficienza")
-    #     plt.xlabel(x_param)
-    #     plt.ylabel("Efficienza")
-    #     plt.title(f"Efficienza {method} - Caso {case_tag}")
-    #     plt.legend()
-    #     plt.savefig(f"plots/efficiency_{case_tag}_{method}.png")
-    #     plt.close()
-
-    #     plt.figure()
-    #     plt.plot(mdata[x_param], mdata["gflops"])
-    #     plt.xlabel(x_param)
-    #     plt.ylabel("GFLOPS")
-    #     plt.title(f"GFLOPS {method} - Caso {case_tag}")
-    #     plt.savefig(f"plots/gflops_{case_tag}_{method}.png")
-    #     plt.close()
+#     return grouped
 
 
-def plot_case_a3(dfs):
+# def plot_case_group(case_tag, dfs):
+#     os.makedirs("plots", exist_ok=True)
+#     df = pd.concat(dfs, ignore_index=True)
+#     df = preprocess(df)
 
-    df = pd.concat(dfs, ignore_index=True)
-    df = preprocess(df)  # aggiunge 'total_threads'
+#     iterative_time = df[df["method"] == "ITERATIVE"]["time"].mean()
+#     cublas_data = df[df["method"] == "SUMMA_CUBLAS"]
 
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection="3d")
-    ax.scatter(df["n_proc"], df["total_threads"], df["time"], c="b", marker="o")
+#     x_param_map = {
+#         "a1": "n_proc",
+#         "a2": "total_threads",
+#         "b": "n_proc",
+#         "c": "total_threads",
+#         "d": "n_proc",
+#     }
+#     x_param = x_param_map.get(case_tag)
+#     if x_param is None:
+#         raise ValueError(f"Unexpected case_tag: {case_tag}")
 
-    min_row = df.loc[df["time"].idxmin()]
-    print(
-        f"[a3] Min time: {min_row['time']}s @ n_proc={min_row['n_proc']}, total_threads={min_row['total_threads']}, method={min_row['method']}"
-    )
+#     plt.figure()
+#     # for method in df["method"].unique():
+#     #     if method == "ITERATIVE":
+#     #         continue
+#     #     mgroup = df[df["method"] == method]
+#     #     mgroup = mgroup.sort_values(by=x_param)
+#     #     plt.plot(mgroup[x_param], mgroup["time"], label=method)
 
-    ax.set_xlabel("n_proc")
-    ax.set_ylabel("total_threads")
-    ax.set_zlabel("time")
-    ax.set_title("Caso a.3 - Tempo rispetto a n_proc e total_threads")
-    plt.savefig("plots/metrics_a3.png")
-    plt.close()
+#     x_vals = sorted(df[x_param].unique())
+#     plt.plot(x_vals, [iterative_time] * len(x_vals), linestyle="--", label="ITERATIVE")
+
+#     # if not cublas_data.empty:
+#     #     y_vals = [cublas_data["time"].mean()] * len(x_vals)
+#     #     plt.plot(x_vals, y_vals, linestyle="--", label="CUBLAS_MEAN")
+
+#     plt.xlabel("Processi")
+#     plt.ylabel("Tempo (s)")
+#     plt.title(f"Caso {case_tag}")
+#     plt.legend()
+#     plt.savefig(f"plots/caso_{case_tag}.png")
+#     plt.close()
+
+#     # Metriche
+#     # T1 = iterative_time
+#     # for method in df["method"].unique():
+#     #     if method == "ITERATIVE":
+#     #         continue
+#     #     mdata = df[df["method"] == method].copy()
+#     #     mdata = mdata.sort_values(by=x_param)
+#     #     mdata["speedup"] = T1 / mdata["time"]
+#     #     mdata["efficiency"] = mdata["speedup"] / mdata["total_threads"]
+#     #     mdata["gflops"] = (2 * (mdata["matrix_size"] ** 3)) / (mdata["time"] * 1e9)
+#     #     mdata.to_csv(f"plots/metrics_{case_tag}_{method}.csv", index=False)
+
+#     #     plt.figure()
+#     #     plt.plot(mdata[x_param], mdata["speedup"], label="Speed-up")
+#     #     plt.ylabel("Speed-up")
+#     #     plt.title(f"Speed-up {method} - Caso {case_tag}")
+#     #     plt.legend()
+#     #     plt.savefig(f"plots/speedup_{case_tag}_{method}.png")
+#     #     plt.close()
+
+#     #     plt.figure()
+#     #     plt.plot(mdata[x_param], mdata["efficiency"], label="Efficienza")
+#     #     plt.xlabel(x_param)
+#     #     plt.ylabel("Efficienza")
+#     #     plt.title(f"Efficienza {method} - Caso {case_tag}")
+#     #     plt.legend()
+#     #     plt.savefig(f"plots/efficiency_{case_tag}_{method}.png")
+#     #     plt.close()
+
+#     #     plt.figure()
+#     #     plt.plot(mdata[x_param], mdata["gflops"])
+#     #     plt.xlabel(x_param)
+#     #     plt.ylabel("GFLOPS")
+#     #     plt.title(f"GFLOPS {method} - Caso {case_tag}")
+#     #     plt.savefig(f"plots/gflops_{case_tag}_{method}.png")
+#     #     plt.close()
+
+
+# def plot_case_a3(dfs):
+
+#     df = pd.concat(dfs, ignore_index=True)
+#     df = preprocess(df)  # aggiunge 'total_threads'
+
+#     fig = plt.figure()
+#     ax = fig.add_subplot(111, projection="3d")
+#     ax.scatter(df["n_proc"], df["total_threads"], df["time"], c="b", marker="o")
+
+#     min_row = df.loc[df["time"].idxmin()]
+#     print(
+#         f"[a3] Min time: {min_row['time']}s @ n_proc={min_row['n_proc']}, total_threads={min_row['total_threads']}, method={min_row['method']}"
+#     )
+
+#     ax.set_xlabel("n_proc")
+#     ax.set_ylabel("total_threads")
+#     ax.set_zlabel("time")
+#     ax.set_title("Caso a.3 - Tempo rispetto a n_proc e total_threads")
+#     plt.savefig("plots/metrics_a3.png")
+#     plt.close()
 
 
 def plot_d(iterative_times: dict[int, float]):
@@ -297,7 +300,6 @@ def plot_a2(iterative_times: dict[int, float]):
 
     x_values = results["total_threads"]
     times_cuda = results["time_cuda"]
-    times_cublas = results["time_cublas"]
 
     # Time
     plt.figure()
@@ -305,20 +307,17 @@ def plot_a2(iterative_times: dict[int, float]):
     plt.ylabel("Tempo (s)")
     plt.title("Tempi caso a2 (Matrice 2048 x 2048)")
     plt.plot(x_values, times_cuda, marker="o", label="CUDA")
-    plt.plot(x_values, times_cublas, marker="o", label="cuBLAS")
     plt.legend()
     plt.savefig("plots/caso_a2.png")
     plt.close()
 
     # Speedup
     speedup_cuda = iterative_times[2048] / times_cuda
-    speedup_cublas = iterative_times[2048] / times_cublas
 
     plt.figure()
     plt.xlabel("Thread")
     plt.title("Speedup caso a2 (Matrice 2048 x 2048)")
     plt.plot(x_values, speedup_cuda, marker="o", label="CUDA")
-    plt.plot(x_values, speedup_cublas, marker="o", label="cuBLAS")
     plt.legend()
     plt.savefig("plots/caso_a2_speedup.png")
     plt.close()
@@ -333,12 +332,6 @@ def plot_a2(iterative_times: dict[int, float]):
         speedup_cuda / (results["n_proc"] * results["total_threads"]),
         marker="o",
         label="CUDA",
-    )
-    plt.plot(
-        x_values,
-        speedup_cublas / (results["n_proc"] * results["total_threads"]),
-        marker="o",
-        label="cuBLAS",
     )
     plt.legend()
     plt.savefig("plots/caso_a2_efficiency.png")
@@ -361,6 +354,12 @@ def plot_a1(iterative_times: dict[int, float]):
     plt.title("Tempi caso a1 (Matrice 2048 x 2048)")
     plt.plot(x_values, times_cuda, marker="o", label="CUDA")
     plt.plot(x_values, times_cublas, marker="o", label="cuBLAS")
+    # plt.plot(
+    #     x_values,
+    #     np.full(shape=len(x_values), fill_value=iterative_times[2048], dtype=np.float64),
+    #     linestyle="--",
+    #     label="iterative",
+    # )
     plt.legend()
     plt.savefig("plots/caso_a1.png")
     plt.close()
