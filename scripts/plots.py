@@ -5,6 +5,29 @@ from mpl_toolkits.mplot3d import Axes3D
 from pathlib import Path
 import os
 import glob
+import csv
+
+column_names = [
+    "matrix_size",
+    "n_proc",
+    "n_gpu",
+    "n_block",
+    "n_thread_per_block",
+    "total_threads",
+    "time_iterative",
+    "time_cuda",
+    "time_cublas",
+]
+
+iterative_times = {
+    64: 0.000572,
+    128: 0.005170,
+    256: 0.036585,
+    512: 0.288438,
+    1024: 2.306527,
+    2048: 18.596436,
+    4096: 152.888483,
+}
 
 
 def group_files_by_case():
@@ -25,7 +48,7 @@ def group_files_by_case():
         if fname.startswith("testA2"):
             grouped["a2"].append(file)
             grouped["a3"].append(file)
-        elif fname.startswith("testA"):
+        elif fname.startswith("testA1"):
             grouped["a1"].append(file)
             grouped["a3"].append(file)
         elif fname.startswith("testB"):
@@ -70,21 +93,21 @@ def plot_case_group(case_tag, dfs):
         raise ValueError(f"Unexpected case_tag: {case_tag}")
 
     plt.figure()
-    for method in df["method"].unique():
-        if method == "ITERATIVE":
-            continue
-        mgroup = df[df["method"] == method]
-        mgroup = mgroup.sort_values(by=x_param)
-        plt.plot(mgroup[x_param], mgroup["time"], label=method)
+    # for method in df["method"].unique():
+    #     if method == "ITERATIVE":
+    #         continue
+    #     mgroup = df[df["method"] == method]
+    #     mgroup = mgroup.sort_values(by=x_param)
+    #     plt.plot(mgroup[x_param], mgroup["time"], label=method)
 
     x_vals = sorted(df[x_param].unique())
     plt.plot(x_vals, [iterative_time] * len(x_vals), linestyle="--", label="ITERATIVE")
 
-    if not cublas_data.empty:
-        y_vals = [cublas_data["time"].mean()] * len(x_vals)
-        plt.plot(x_vals, y_vals, linestyle="--", label="CUBLAS_MEAN")
+    # if not cublas_data.empty:
+    #     y_vals = [cublas_data["time"].mean()] * len(x_vals)
+    #     plt.plot(x_vals, y_vals, linestyle="--", label="CUBLAS_MEAN")
 
-    plt.xlabel(x_param)
+    plt.xlabel("Processi")
     plt.ylabel("Tempo (s)")
     plt.title(f"Caso {case_tag}")
     plt.legend()
@@ -92,41 +115,41 @@ def plot_case_group(case_tag, dfs):
     plt.close()
 
     # Metriche
-    T1 = iterative_time
-    for method in df["method"].unique():
-        if method == "ITERATIVE":
-            continue
-        mdata = df[df["method"] == method].copy()
-        mdata = mdata.sort_values(by=x_param)
-        mdata["speedup"] = T1 / mdata["time"]
-        mdata["efficiency"] = mdata["speedup"] / mdata["total_threads"]
-        mdata["gflops"] = (2 * (mdata["matrix_size"] ** 3)) / (mdata["time"] * 1e9)
-        mdata.to_csv(f"plots/metrics_{case_tag}_{method}.csv", index=False)
+    # T1 = iterative_time
+    # for method in df["method"].unique():
+    #     if method == "ITERATIVE":
+    #         continue
+    #     mdata = df[df["method"] == method].copy()
+    #     mdata = mdata.sort_values(by=x_param)
+    #     mdata["speedup"] = T1 / mdata["time"]
+    #     mdata["efficiency"] = mdata["speedup"] / mdata["total_threads"]
+    #     mdata["gflops"] = (2 * (mdata["matrix_size"] ** 3)) / (mdata["time"] * 1e9)
+    #     mdata.to_csv(f"plots/metrics_{case_tag}_{method}.csv", index=False)
 
-        plt.figure()
-        plt.plot(mdata[x_param], mdata["speedup"], label="Speed-up")
-        plt.ylabel("Speed-up")
-        plt.title(f"Speed-up {method} - Caso {case_tag}")
-        plt.legend()
-        plt.savefig(f"plots/speedup_{case_tag}_{method}.png")
-        plt.close()
+    #     plt.figure()
+    #     plt.plot(mdata[x_param], mdata["speedup"], label="Speed-up")
+    #     plt.ylabel("Speed-up")
+    #     plt.title(f"Speed-up {method} - Caso {case_tag}")
+    #     plt.legend()
+    #     plt.savefig(f"plots/speedup_{case_tag}_{method}.png")
+    #     plt.close()
 
-        plt.figure()
-        plt.plot(mdata[x_param], mdata["efficiency"], label="Efficienza")
-        plt.xlabel(x_param)
-        plt.ylabel("Efficienza")
-        plt.title(f"Efficienza {method} - Caso {case_tag}")
-        plt.legend()
-        plt.savefig(f"plots/efficiency_{case_tag}_{method}.png")
-        plt.close()
+    #     plt.figure()
+    #     plt.plot(mdata[x_param], mdata["efficiency"], label="Efficienza")
+    #     plt.xlabel(x_param)
+    #     plt.ylabel("Efficienza")
+    #     plt.title(f"Efficienza {method} - Caso {case_tag}")
+    #     plt.legend()
+    #     plt.savefig(f"plots/efficiency_{case_tag}_{method}.png")
+    #     plt.close()
 
-        plt.figure()
-        plt.plot(mdata[x_param], mdata["gflops"])
-        plt.xlabel(x_param)
-        plt.ylabel("GFLOPS")
-        plt.title(f"GFLOPS {method} - Caso {case_tag}")
-        plt.savefig(f"plots/gflops_{case_tag}_{method}.png")
-        plt.close()
+    #     plt.figure()
+    #     plt.plot(mdata[x_param], mdata["gflops"])
+    #     plt.xlabel(x_param)
+    #     plt.ylabel("GFLOPS")
+    #     plt.title(f"GFLOPS {method} - Caso {case_tag}")
+    #     plt.savefig(f"plots/gflops_{case_tag}_{method}.png")
+    #     plt.close()
 
 
 def plot_case_a3(dfs):
@@ -151,31 +174,207 @@ def plot_case_a3(dfs):
     plt.close()
 
 
+def plot_d():
+    os.makedirs("plots", exist_ok=True)
+
+    results = pd.read_csv("csv/testD.csv", header=None, names=column_names)
+
+    x_values = results["n_proc"]
+    times_cuda = results["time_cuda"]
+    times_cublas = results["time_cublas"]
+
+    plt.figure()
+    plt.xlabel("Processi")
+    plt.ylabel("Tempo (s)")
+    plt.title("Caso D")
+    plt.plot(x_values, times_cuda, marker="o", label="CUDA")
+    plt.plot(x_values, times_cublas, marker="o", label="cuBLAS")
+    plt.legend()
+    plt.savefig("plots/caso_d.png")
+    plt.close()
+
+
+def plot_c():
+    os.makedirs("plots", exist_ok=True)
+
+    results = pd.read_csv("csv/testC.csv", header=None, names=column_names)
+
+    x_values = results["total_threads"]
+    times_cuda = results["time_cuda"]
+    times_cublas = results["time_cublas"]
+
+    plt.figure()
+    plt.xlabel("Thread")
+    plt.ylabel("Tempo (s)")
+    plt.title("Caso C")
+    plt.plot(x_values, times_cuda, marker="o", label="CUDA")
+    plt.plot(x_values, times_cublas, marker="o", label="cuBLAS")
+    plt.legend()
+    plt.savefig("plots/caso_c.png")
+    plt.close()
+
+
+def plot_b():
+    os.makedirs("plots", exist_ok=True)
+
+    results = pd.read_csv("csv/testB.csv", header=None, names=column_names)
+
+    x_values = results["n_proc"]
+    times_cuda = results["time_cuda"]
+    times_cublas = results["time_cublas"]
+
+    plt.figure()
+    plt.xlabel("Processi")
+    plt.ylabel("Tempo (s)")
+    plt.title("Caso B")
+    plt.plot(x_values, times_cuda, marker="o", label="CUDA")
+    plt.plot(x_values, times_cublas, marker="o", label="cuBLAS")
+    plt.legend()
+    plt.savefig("plots/caso_b.png")
+    plt.close()
+
+
+def plot_a2():
+    os.makedirs("plots", exist_ok=True)
+
+    results = pd.read_csv("csv/testA2.csv", header=None, names=column_names)
+
+    x_values = results["total_threads"]
+    times_cuda = results["time_cuda"]
+    times_cublas = results["time_cublas"]
+
+    # Time
+    plt.figure()
+    plt.xlabel("Thread")
+    plt.ylabel("Tempo (s)")
+    plt.title("Tempi caso a2 (Matrice 2048 x 2048)")
+    plt.plot(x_values, times_cuda, marker="o", label="CUDA")
+    plt.plot(x_values, times_cublas, marker="o", label="cuBLAS")
+    plt.legend()
+    plt.savefig("plots/caso_a2.png")
+    plt.close()
+
+    # Speedup
+    speedup_cuda = iterative_times[2048] / times_cuda
+    speedup_cublas = iterative_times[2048] / times_cublas
+
+    plt.figure()
+    plt.xlabel("Thread")
+    plt.title("Speedup caso a2 (Matrice 2048 x 2048)")
+    plt.plot(x_values, speedup_cuda, marker="o", label="CUDA")
+    plt.plot(x_values, speedup_cublas, marker="o", label="cuBLAS")
+    plt.legend()
+    plt.savefig("plots/caso_a2_speedup.png")
+    plt.close()
+
+    # Efficiency
+    plt.figure()
+    plt.xlabel("Processi")
+    plt.ylim(0, 1)
+    plt.title("Efficienza caso a2 (Matrice 2048 x 2048)")
+    plt.plot(
+        x_values,
+        speedup_cuda / (results["n_proc"] * results["total_threads"]),
+        marker="o",
+        label="CUDA",
+    )
+    plt.plot(
+        x_values,
+        speedup_cublas / (results["n_proc"] * results["total_threads"]),
+        marker="o",
+        label="cuBLAS",
+    )
+    plt.legend()
+    plt.savefig("plots/caso_a2_efficiency.png")
+    plt.close()
+
+
+def plot_a1():
+    os.makedirs("plots", exist_ok=True)
+
+    results = pd.read_csv("csv/testA1.csv", header=None, names=column_names)
+
+    x_values = results["n_proc"]
+    times_cuda = results["time_cuda"]
+    times_cublas = results["time_cublas"]
+
+    # Time
+    plt.figure()
+    plt.xlabel("Processi")
+    plt.ylabel("Tempo (s)")
+    plt.title("Tempi caso a1 (Matrice 2048 x 2048)")
+    plt.plot(x_values, times_cuda, marker="o", label="CUDA")
+    plt.plot(x_values, times_cublas, marker="o", label="cuBLAS")
+    plt.legend()
+    plt.savefig("plots/caso_a1.png")
+    plt.close()
+
+    # Speedup
+    speedup_cuda = iterative_times[2048] / times_cuda
+    speedup_cublas = iterative_times[2048] / times_cublas
+
+    plt.figure()
+    plt.xlabel("Processi")
+    plt.title("Speedup caso a1 (Matrice 2048 x 2048)")
+    plt.plot(x_values, speedup_cuda, marker="o", label="CUDA")
+    plt.plot(x_values, speedup_cublas, marker="o", label="cuBLAS")
+    plt.legend()
+    plt.savefig("plots/caso_a1_speedup.png")
+    plt.close()
+
+    # Efficiency
+    plt.figure()
+    plt.xlabel("Processi")
+    plt.ylim(0, 1)
+    plt.title("Efficienza caso a1 (Matrice 2048 x 2048)")
+    plt.plot(
+        x_values,
+        speedup_cuda / (results["n_proc"] * results["total_threads"]),
+        marker="o",
+        label="CUDA",
+    )
+    plt.plot(
+        x_values,
+        speedup_cublas / (results["n_proc"] * results["total_threads"]),
+        marker="o",
+        label="cuBLAS",
+    )
+    plt.legend()
+    plt.savefig("plots/caso_a1_efficiency.png")
+    plt.close()
+
+
 def main():
-    print("Caricamento CSV...")
-    grouped = group_files_by_case()
 
-    column_names = [
-        "matrix_size",
-        "n_proc",
-        "n_gpu",
-        "n_block",
-        "n_thread_per_block",
-        "method",
-        "time",
-    ]
+    # print("Caricamento CSV...")
+    # grouped = group_files_by_case()
 
-    for case_tag, file_list in grouped.items():
-        if not file_list:
-            continue
-        print(f"Analisi per caso {case_tag} con {len(file_list)} CSV")
-        dfs = [pd.read_csv(f, header=None, names=column_names) for f in file_list]
+    # column_names = [
+    #     "matrix_size",
+    #     "n_proc",
+    #     "n_gpu",
+    #     "n_block",
+    #     "n_thread_per_block",
+    #     "method",
+    #     "time",
+    # ]
 
-        if case_tag == "a3":
-            plot_case_a3(dfs)
-        else:
-            plot_case_group(case_tag, dfs)
+    # for case_tag, file_list in grouped.items():
+    #     if not file_list:
+    #         continue
+    #     print(f"Analisi per caso {case_tag} con {len(file_list)} CSV")
+    #     dfs = [pd.read_csv(f, header=None, names=column_names) for f in file_list]
+
+    #     if case_tag == "a3":
+    #         plot_case_a3(dfs)
+    #     else:
+    #         plot_case_group(case_tag, dfs)
+    pass
 
 
 if __name__ == "__main__":
-    main()
+    plot_a1()
+    plot_a2()
+    plot_b()
+    plot_c()
+    plot_d()

@@ -17,7 +17,7 @@
 int main(int argc, char *argv[]) {
   int i, j;
   int dims[2], period[2], coord[2], rank, size;
-  double start_time, end_time;
+  double start_time, iterative_time, cuda_time, cublas_time;
 
   MPI_Init(&argc, &argv);
 
@@ -154,16 +154,16 @@ int main(int argc, char *argv[]) {
   // TEST Iterative
   // ==================================================
   // FIXME: don't need to run this test every time if the only thing that changes is the matrices size
-  if (rank == 0) {
-    printf("  Running iterative test...\n");
-    memset(C, 0, N * N * sizeof(double));
+  // if (rank == 0) {
+  //   printf("  Running iterative test...\n");
+  //   memset(C, 0, N * N * sizeof(double));
 
-    start_time = get_cur_time();
-    phpc_gemm_iterative(A, B, C, N);
-    end_time = get_cur_time() - start_time;
+  //   start_time = get_cur_time();
+  //   phpc_gemm_iterative(A, B, C, N);
+  //   iterative_time = get_cur_time() - start_time;
 
-    log_to_csv(csv_file, N, 1, gpu_count, 0, 0, "ITERATIVE", end_time);
-  }
+  //   // log_to_csv(csv_file, N, 1, gpu_count, 0, 0, "ITERATIVE", end_time);
+  // }
 
   // ==================================================
   // Test SUMMA CUDA
@@ -174,10 +174,10 @@ int main(int argc, char *argv[]) {
 
   start_time = get_cur_time();
   phpc_gemm_summa_cuda(grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, tile_width);
-  end_time = get_cur_time() - start_time;
+  cuda_time = get_cur_time() - start_time;
 
-  if (rank == 0)
-    log_to_csv(csv_file, N, size, gpu_count, grid_width * grid_height, tile_width * tile_width, "SUMMA_CUDA", end_time);
+  // if (rank == 0)
+  //   log_to_csv(csv_file, N, size, gpu_count, grid_width * grid_height, tile_width * tile_width, "SUMMA_CUDA", end_time);
 
   // ==================================================
   // Test SUMMA CUBLAS with the current tile width and grid size
@@ -188,12 +188,12 @@ int main(int argc, char *argv[]) {
 
   start_time = get_cur_time();
   phpc_gemm_summa_cublas(grid_comm, A, B, C, N, gpu_count);
-  end_time = get_cur_time() - start_time;
+  cublas_time = get_cur_time() - start_time;
 
   if (rank == 0) {
-    log_to_csv(csv_file, N, size, gpu_count, grid_width * grid_height, tile_width * tile_width, "SUMMA_CUBLAS", end_time);
+    log_to_csv(csv_file, N, size, gpu_count, grid_width * grid_height, tile_width * tile_width, iterative_time, cuda_time, cublas_time);
+    // printf("\n  All tests completed.\n\n");
     fclose(csv_file);
-    printf("\n  All tests completed.\n\n");
   }
 
   free(A);

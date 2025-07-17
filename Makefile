@@ -1,11 +1,15 @@
-all: compile clean
+all: iterative cuda clean
 
-compile: cuda
+cuda: cuda_module iterative
 	mkdir -p bin
-	mpicc src/*.c cuda.o -o bin/main.out -lcudart -lcublas -lm
+	mpicc src/main.c src/phpc_summa.c src/utils.c cuda.o -o bin/main.out -lcudart -lcublas -lm
 
-cuda:
+iterative:
+	mkdir -p bin
+	gcc src/iterative.c src/utils.c -o bin/iterative.out
+
+cuda_module:
 	nvcc -c src/*.cu -o cuda.o -lineinfo
 
-clean: compile
+clean:
 	rm cuda.o
