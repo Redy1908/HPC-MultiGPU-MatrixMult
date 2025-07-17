@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import os
 
 # import glob
-# import csv
+import csv
 
 column_names = [
     "matrix_size",
@@ -400,16 +400,16 @@ def plot_a1(iterative_times: dict[int, float]):
 
 
 def load_iterative_times() -> dict[int, float]:
-    # TODO: load from file
-    return {
-        64: 0.000572,
-        128: 0.005170,
-        256: 0.036585,
-        512: 0.288438,
-        1024: 2.306527,
-        2048: 18.596436,
-        4096: 152.888483,
-    }
+    times = {}
+
+    with open("csv/iterative.csv", mode="r", encoding="utf-8") as file:
+        reader = csv.reader(file)
+        for row in reader:
+            size = int(row[0])
+            time = float(row[1])
+            times[size] = time
+
+    return times
 
 
 if __name__ == "__main__":
