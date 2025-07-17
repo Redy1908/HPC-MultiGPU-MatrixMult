@@ -19,16 +19,6 @@ column_names = [
     "time_cublas",
 ]
 
-iterative_times = {
-    64: 0.000572,
-    128: 0.005170,
-    256: 0.036585,
-    512: 0.288438,
-    1024: 2.306527,
-    2048: 18.596436,
-    4096: 152.888483,
-}
-
 
 def group_files_by_case():
     csv_dir = Path("csv")
@@ -59,18 +49,6 @@ def group_files_by_case():
             grouped["d"].append(file)
 
     return grouped
-
-
-def preprocess(df):
-    df["total_threads"] = df.apply(
-        lambda row: (
-            row["n_block"] * row["n_thread_per_block"]
-            if row["n_block"] > 0 and row["n_thread_per_block"] > 0
-            else 1
-        ),
-        axis=1,
-    )
-    return df
 
 
 def plot_case_group(case_tag, dfs):
@@ -174,7 +152,7 @@ def plot_case_a3(dfs):
     plt.close()
 
 
-def plot_d():
+def plot_d(iterative_times: dict[int, float]):
     os.makedirs("plots", exist_ok=True)
 
     results = pd.read_csv("csv/testD.csv", header=None, names=column_names)
@@ -193,8 +171,34 @@ def plot_d():
     plt.savefig("plots/caso_d.png")
     plt.close()
 
+    # Scaled speedup
+    speedup_cuda = (results["total_threads"] * results["n_proc"] * iterative_times[64]) / times_cuda
+    speedup_cublas = (results["total_threads"] * results["n_proc"] * iterative_times[64]) / times_cublas
 
-def plot_c():
+    plt.figure()
+    plt.xlabel("Processi")
+    plt.title("Speedup scalato caso d")
+    plt.plot(x_values, speedup_cuda, marker="o", label="CUDA")
+    plt.plot(x_values, speedup_cublas, marker="o", label="cuBLAS")
+    plt.legend()
+    plt.savefig("plots/caso_d_scaled_speedup.png")
+    plt.close()
+
+    # Scaled efficiency
+    efficiency_cuda = iterative_times[1024] / times_cuda
+    efficiency_cublas = iterative_times[1024] / times_cublas
+
+    plt.figure()
+    plt.xlabel("Processi")
+    plt.title("Efficienza scalata caso c")
+    plt.plot(x_values, efficiency_cuda, marker="o", label="CUDA")
+    plt.plot(x_values, efficiency_cublas, marker="o", label="cuBLAS")
+    plt.legend()
+    plt.savefig("plots/caso_d_scaled_efficiency.png")
+    plt.close()
+
+
+def plot_c(iterative_times: dict[int, float]):
     os.makedirs("plots", exist_ok=True)
 
     results = pd.read_csv("csv/testC.csv", header=None, names=column_names)
@@ -213,8 +217,34 @@ def plot_c():
     plt.savefig("plots/caso_c.png")
     plt.close()
 
+    # Scaled speedup
+    speedup_cuda = (results["total_threads"] * results["n_proc"] * iterative_times[64]) / times_cuda
+    speedup_cublas = (results["total_threads"] * results["n_proc"] * iterative_times[64]) / times_cublas
 
-def plot_b():
+    plt.figure()
+    plt.xlabel("Processi")
+    plt.title("Speedup scalato caso c")
+    plt.plot(x_values, speedup_cuda, marker="o", label="CUDA")
+    plt.plot(x_values, speedup_cublas, marker="o", label="cuBLAS")
+    plt.legend()
+    plt.savefig("plots/caso_c_scaled_speedup.png")
+    plt.close()
+
+    # Scaled efficiency
+    efficiency_cuda = iterative_times[1024] / times_cuda
+    efficiency_cublas = iterative_times[1024] / times_cublas
+
+    plt.figure()
+    plt.xlabel("Processi")
+    plt.title("Efficienza scalata caso c")
+    plt.plot(x_values, efficiency_cuda, marker="o", label="CUDA")
+    plt.plot(x_values, efficiency_cublas, marker="o", label="cuBLAS")
+    plt.legend()
+    plt.savefig("plots/caso_c_scaled_efficiency.png")
+    plt.close()
+
+
+def plot_b(iterative_times: dict[int, float]):
     os.makedirs("plots", exist_ok=True)
 
     results = pd.read_csv("csv/testB.csv", header=None, names=column_names)
@@ -233,8 +263,34 @@ def plot_b():
     plt.savefig("plots/caso_b.png")
     plt.close()
 
+    # Scaled speedup
+    speedup_cuda = (results["n_proc"] * iterative_times[1024]) / times_cuda
+    speedup_cublas = (results["n_proc"] * iterative_times[1024]) / times_cublas
 
-def plot_a2():
+    plt.figure()
+    plt.xlabel("Processi")
+    plt.title("Speedup scalato caso b")
+    plt.plot(x_values, speedup_cuda, marker="o", label="CUDA")
+    plt.plot(x_values, speedup_cublas, marker="o", label="cuBLAS")
+    plt.legend()
+    plt.savefig("plots/caso_b_scaled_speedup.png")
+    plt.close()
+
+    # Scaled efficiency
+    efficiency_cuda = iterative_times[1024] / times_cuda
+    efficiency_cublas = iterative_times[1024] / times_cublas
+
+    plt.figure()
+    plt.xlabel("Processi")
+    plt.title("Efficienza scalata caso b")
+    plt.plot(x_values, efficiency_cuda, marker="o", label="CUDA")
+    plt.plot(x_values, efficiency_cublas, marker="o", label="cuBLAS")
+    plt.legend()
+    plt.savefig("plots/caso_b_scaled_efficiency.png")
+    plt.close()
+
+
+def plot_a2(iterative_times: dict[int, float]):
     os.makedirs("plots", exist_ok=True)
 
     results = pd.read_csv("csv/testA2.csv", header=None, names=column_names)
@@ -289,7 +345,7 @@ def plot_a2():
     plt.close()
 
 
-def plot_a1():
+def plot_a1(iterative_times: dict[int, float]):
     os.makedirs("plots", exist_ok=True)
 
     results = pd.read_csv("csv/testA1.csv", header=None, names=column_names)
@@ -344,37 +400,23 @@ def plot_a1():
     plt.close()
 
 
-def main():
-
-    # print("Caricamento CSV...")
-    # grouped = group_files_by_case()
-
-    # column_names = [
-    #     "matrix_size",
-    #     "n_proc",
-    #     "n_gpu",
-    #     "n_block",
-    #     "n_thread_per_block",
-    #     "method",
-    #     "time",
-    # ]
-
-    # for case_tag, file_list in grouped.items():
-    #     if not file_list:
-    #         continue
-    #     print(f"Analisi per caso {case_tag} con {len(file_list)} CSV")
-    #     dfs = [pd.read_csv(f, header=None, names=column_names) for f in file_list]
-
-    #     if case_tag == "a3":
-    #         plot_case_a3(dfs)
-    #     else:
-    #         plot_case_group(case_tag, dfs)
-    pass
+def load_iterative_times() -> dict[int, float]:
+    # TODO: load from file
+    return {
+        64: 0.000572,
+        128: 0.005170,
+        256: 0.036585,
+        512: 0.288438,
+        1024: 2.306527,
+        2048: 18.596436,
+        4096: 152.888483,
+    }
 
 
 if __name__ == "__main__":
-    plot_a1()
-    plot_a2()
-    plot_b()
-    plot_c()
-    plot_d()
+    iterative_times = load_iterative_times()
+    plot_a1(iterative_times)
+    plot_a2(iterative_times)
+    plot_b(iterative_times)
+    plot_c(iterative_times)
+    plot_d(iterative_times)
