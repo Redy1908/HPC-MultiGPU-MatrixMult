@@ -1,6 +1,5 @@
 import pandas as pd
-
-# import numpy as np
+import numpy as np
 import matplotlib.pyplot as plt
 
 # from mpl_toolkits.mplot3d import Axes3D
@@ -17,8 +16,8 @@ column_names = [
     "n_block",
     "n_thread_per_block",
     "total_threads",
-    "time_iterative",
     "time_cuda",
+    "time_cuda_gpu",
     "time_cublas",
 ]
 
@@ -175,8 +174,12 @@ def plot_d(iterative_times: dict[int, float]):
     plt.close()
 
     # Scaled speedup
-    speedup_cuda = (results["total_threads"] * results["n_proc"] * iterative_times[64]) / times_cuda
-    speedup_cublas = (results["total_threads"] * results["n_proc"] * iterative_times[64]) / times_cublas
+    t1 = []
+    for size in results["matrix_size"]:
+        t1.append(iterative_times[size])
+
+    speedup_cuda = t1 / times_cuda
+    speedup_cublas = t1 / times_cublas
 
     plt.figure()
     plt.xlabel("Processi")
@@ -188,8 +191,9 @@ def plot_d(iterative_times: dict[int, float]):
     plt.close()
 
     # Scaled efficiency
-    efficiency_cuda = iterative_times[1024] / times_cuda
-    efficiency_cublas = iterative_times[1024] / times_cublas
+    total_threads = results["n_proc"] * results["total_threads"]
+    efficiency_cuda = speedup_cuda / total_threads
+    efficiency_cublas = speedup_cublas / total_threads
 
     plt.figure()
     plt.xlabel("Processi")
@@ -221,8 +225,12 @@ def plot_c(iterative_times: dict[int, float]):
     plt.close()
 
     # Scaled speedup
-    speedup_cuda = (results["total_threads"] * results["n_proc"] * iterative_times[64]) / times_cuda
-    speedup_cublas = (results["total_threads"] * results["n_proc"] * iterative_times[64]) / times_cublas
+    t1 = []
+    for size in results["matrix_size"]:
+        t1.append(iterative_times[size])
+
+    speedup_cuda = t1 / times_cuda
+    speedup_cublas = t1 / times_cublas
 
     plt.figure()
     plt.xlabel("Processi")
@@ -234,8 +242,9 @@ def plot_c(iterative_times: dict[int, float]):
     plt.close()
 
     # Scaled efficiency
-    efficiency_cuda = iterative_times[1024] / times_cuda
-    efficiency_cublas = iterative_times[1024] / times_cublas
+    total_threads = results["n_proc"] * results["total_threads"]
+    efficiency_cuda = speedup_cuda / total_threads
+    efficiency_cublas = speedup_cublas / total_threads
 
     plt.figure()
     plt.xlabel("Processi")
@@ -252,12 +261,12 @@ def plot_b(iterative_times: dict[int, float]):
 
     results = pd.read_csv("csv/testB.csv", header=None, names=column_names)
 
-    x_values = results["n_proc"]
+    x_values = results["n_proc"] * results["total_threads"]
     times_cuda = results["time_cuda"]
     times_cublas = results["time_cublas"]
 
     plt.figure()
-    plt.xlabel("Processi")
+    plt.xlabel("Thread")
     plt.ylabel("Tempo (s)")
     plt.title("Caso B")
     plt.plot(x_values, times_cuda, marker="o", label="CUDA")
@@ -267,11 +276,15 @@ def plot_b(iterative_times: dict[int, float]):
     plt.close()
 
     # Scaled speedup
-    speedup_cuda = (results["n_proc"] * iterative_times[1024]) / times_cuda
-    speedup_cublas = (results["n_proc"] * iterative_times[1024]) / times_cublas
+    t1 = []
+    for size in results["matrix_size"]:
+        t1.append(iterative_times[size])
+
+    speedup_cuda = t1 / times_cuda
+    speedup_cublas = t1 / times_cublas
 
     plt.figure()
-    plt.xlabel("Processi")
+    plt.xlabel("Thread")
     plt.title("Speedup scalato caso b")
     plt.plot(x_values, speedup_cuda, marker="o", label="CUDA")
     plt.plot(x_values, speedup_cublas, marker="o", label="cuBLAS")
@@ -280,11 +293,12 @@ def plot_b(iterative_times: dict[int, float]):
     plt.close()
 
     # Scaled efficiency
-    efficiency_cuda = iterative_times[1024] / times_cuda
-    efficiency_cublas = iterative_times[1024] / times_cublas
+    total_threads = results["n_proc"] * results["total_threads"]
+    efficiency_cuda = speedup_cuda / total_threads
+    efficiency_cublas = speedup_cublas / total_threads
 
     plt.figure()
-    plt.xlabel("Processi")
+    plt.xlabel("Thread")
     plt.title("Efficienza scalata caso b")
     plt.plot(x_values, efficiency_cuda, marker="o", label="CUDA")
     plt.plot(x_values, efficiency_cublas, marker="o", label="cuBLAS")
@@ -299,20 +313,27 @@ def plot_a2(iterative_times: dict[int, float]):
     results = pd.read_csv("csv/testA2.csv", header=None, names=column_names)
 
     x_values = results["total_threads"]
-    times_cuda = results["time_cuda"]
 
     # Time
     plt.figure()
     plt.xlabel("Thread")
     plt.ylabel("Tempo (s)")
     plt.title("Tempi caso a2 (Matrice 2048 x 2048)")
-    plt.plot(x_values, times_cuda, marker="o", label="CUDA")
+    plt.plot(x_values, results["time_cuda"], marker="o", label="CUDA")
+    plt.plot(x_values, results["time_cuda_gpu"], marker="o", label="CUDA Kernel")
+    plt.plot(x_values, results["time_cublas"], linestyle="--", label="cuBLAS")
+    plt.plot(
+        x_values,
+        np.full(shape=len(x_values), fill_value=iterative_times[2048], dtype=np.float64),
+        linestyle="--",
+        label="iterative",
+    )
     plt.legend()
     plt.savefig("plots/caso_a2.png")
     plt.close()
 
     # Speedup
-    speedup_cuda = iterative_times[2048] / times_cuda
+    speedup_cuda = iterative_times[2048] / results["time_cuda"]
 
     plt.figure()
     plt.xlabel("Thread")
@@ -344,53 +365,64 @@ def plot_a1(iterative_times: dict[int, float]):
     results = pd.read_csv("csv/testA1.csv", header=None, names=column_names)
 
     x_values = results["n_proc"]
-    times_cuda = results["time_cuda"]
-    times_cublas = results["time_cublas"]
 
     # Time
     plt.figure()
     plt.xlabel("Processi")
     plt.ylabel("Tempo (s)")
     plt.title("Tempi caso a1 (Matrice 2048 x 2048)")
-    plt.plot(x_values, times_cuda, marker="o", label="CUDA")
-    plt.plot(x_values, times_cublas, marker="o", label="cuBLAS")
-    # plt.plot(
-    #     x_values,
-    #     np.full(shape=len(x_values), fill_value=iterative_times[2048], dtype=np.float64),
-    #     linestyle="--",
-    #     label="iterative",
-    # )
+    plt.plot(x_values, results["time_cuda"], marker="o", label="CUDA")
+    plt.plot(x_values, results["time_cuda_gpu"], marker="o", label="CUDA kernel")
+    plt.plot(x_values, results["time_cublas"], marker="o", label="cuBLAS")
+    plt.plot(
+        x_values,
+        np.full(shape=len(x_values), fill_value=iterative_times[2048], dtype=np.float64),
+        linestyle="--",
+        label="iterative",
+    )
     plt.legend()
     plt.savefig("plots/caso_a1.png")
     plt.close()
 
     # Speedup
-    speedup_cuda = iterative_times[2048] / times_cuda
-    speedup_cublas = iterative_times[2048] / times_cublas
+    speedup_cuda = iterative_times[2048] / results["time_cuda"]
+    speedup_cuda_gpu = iterative_times[2048] / results["time_cuda_gpu"]
+    speedup_cublas = iterative_times[2048] / results["time_cublas"]
 
     plt.figure()
     plt.xlabel("Processi")
     plt.title("Speedup caso a1 (Matrice 2048 x 2048)")
     plt.plot(x_values, speedup_cuda, marker="o", label="CUDA")
+    plt.plot(x_values, speedup_cuda_gpu, marker="o", label="CUDA kernel")
     plt.plot(x_values, speedup_cublas, marker="o", label="cuBLAS")
     plt.legend()
     plt.savefig("plots/caso_a1_speedup.png")
     plt.close()
 
     # Efficiency
+    efficiency_cuda = speedup_cuda / (results["n_proc"] * results["total_threads"])
+    efficiency_cuda_gpu = speedup_cuda_gpu / (results["n_proc"] * results["total_threads"])
+    efficiency_cublas = speedup_cublas / (results["n_proc"] * results["total_threads"])
+
     plt.figure()
     plt.xlabel("Processi")
     plt.ylim(0, 1)
     plt.title("Efficienza caso a1 (Matrice 2048 x 2048)")
     plt.plot(
         x_values,
-        speedup_cuda / (results["n_proc"] * results["total_threads"]),
+        efficiency_cuda,
         marker="o",
         label="CUDA",
     )
     plt.plot(
         x_values,
-        speedup_cublas / (results["n_proc"] * results["total_threads"]),
+        efficiency_cuda_gpu,
+        marker="o",
+        label="CUDA kernel",
+    )
+    plt.plot(
+        x_values,
+        efficiency_cublas,
         marker="o",
         label="cuBLAS",
     )

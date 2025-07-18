@@ -8,7 +8,6 @@
 
 double get_cur_time() {
   struct timeval tv;
-  // struct timezone tz;
   double cur_time;
 
   gettimeofday(&tv, NULL);
@@ -17,7 +16,7 @@ double get_cur_time() {
   return cur_time;
 }
 
-void log_to_csv(FILE *csv_file, int N, int size, int gpu_count, int num_blocks, int threads_per_block, double iterative_time, double cuda_time, double cublas_time) {
+void log_to_csv(FILE *csv_file, int N, int size, int gpu_count, int num_blocks, int threads_per_block, double cuda_time, float cuda_gpu_time, double cublas_time) {
   // if (csv_file) {
   //   if (strcmp(method, "ITERATIVE") == 0) {
   //     fprintf(csv_file, "%d,%d,%d,%d,%d,%s,%f\n", N, 1, 0, 0, 0, method, time);
@@ -25,7 +24,7 @@ void log_to_csv(FILE *csv_file, int N, int size, int gpu_count, int num_blocks, 
   //     fprintf(csv_file, "%d,%d,%d,%d,%d,%s,%f\n", N, size, gpu_count, 0, 0, method, time);
   //   } else {
   int total_threads = gpu_count * num_blocks * threads_per_block;
-  fprintf(csv_file, "%d,%d,%d,%d,%d,%d,%f,%f,%f\n", N, size, gpu_count, num_blocks, threads_per_block, total_threads, iterative_time, cuda_time, cublas_time);
+  fprintf(csv_file, "%d,%d,%d,%d,%d,%d,%f,%f,%f\n", N, size, gpu_count, num_blocks, threads_per_block, total_threads, cuda_time, cuda_gpu_time, cublas_time);
   // }
   // }
 }

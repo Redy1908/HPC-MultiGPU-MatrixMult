@@ -1,14 +1,10 @@
 #include "phpc_summa.h"
 
-#include <cublasXt.h>
-#include <cublas_v2.h>
-#include <cuda_runtime.h>
-#include <math.h>
 #include <stdlib.h>
 
 #include "phpc_gemm.cuh"
 
-typedef void (*gemm_t)(const double *a, int lda, const double *b, int ldb, double *c, int ldc, int m, int k, int n, int gpu_count, int grid_width, int grid_height, int block_width);
+typedef void (*gemm_t)(const double *a, int lda, const double *b, int ldb, double *c, int ldc, int m, int k, int n, int gpu_count, int grid_width, int grid_height, int block_width, float *gpu_time);
 
 int find_lcm(int a, int b) {
   int q, r;
@@ -25,30 +21,7 @@ int find_lcm(int a, int b) {
   return a * b / x;
 }
 
-void phpc_gemm_iterative(const double *A, const double *B, double *C, int N) {
-  for (int i = 0; i < N; ++i)
-    for (int j = 0; j < N; ++j)
-      for (int k = 0; k < N; ++k)
-        C[i * N + k] += A[i * N + j] * B[j * N + k];
-}
-
-void phpc_gemm_cublas(const double *a, int lda, const double *b, int ldb, double *c, int ldc, int m, int k, int n, int gpu_count, int grid_width, int grid_height, int block_width) {
-  int devices[32]; /* checking for 32 devices on a single machine is more than enough */
-  cublasXtHandle_t handle;
-  double alpha = 1, beta = 1;
-
-  for (size_t i = 0; i < gpu_count; i++)
-    devices[i] = i;
-
-  cublasXtCreate(&handle);
-  cublasXtDeviceSelect(handle, gpu_count, devices);
-
-  /* note: some subtle math magic to make it work since cublas expects column-major matrices https://stackoverflow.com/a/56064726/17731255 */
-  cublasXtDgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, n, m, k, &alpha, b, ldb, a, lda, &beta, c, ldc);
-  cublasXtDestroy(handle);
-}
-
-int phpc_gemm_summa(gemm_t f, MPI_Comm grid_comm, const double *A, const double *B, double *C, int N, int gpu_count, int grid_width, int grid_height, int block_width) {
+int phpc_gemm_summa(gemm_t f, MPI_Comm grid_comm, const double *A, const double *B, double *C, int N, int gpu_count, int grid_width, int grid_height, int block_width, float *gpu_time) {
   /* get MPI properties */
   int rank, size, dims[2], periods[2], coords[2];
   int remain_dims_row[2] = {0, 1};
@@ -85,6 +58,8 @@ int phpc_gemm_summa(gemm_t f, MPI_Comm grid_comm, const double *A, const double 
   MPI_Type_commit(&block_b_type);
   MPI_Type_commit(&block_c_type);
 
+  *gpu_time = 0;
+
   for (int k = 0; k < lcm; k++) {
     int sender_column = k % dims[1];
     int sender_row = k % dims[0];
@@ -114,7 +89,9 @@ int phpc_gemm_summa(gemm_t f, MPI_Comm grid_comm, const double *A, const double 
     }
 
     /* compute product of the blocks */
-    f(block_a, block_lda, block_b, block_ldb, offset_c, N, local_A_rows, panel_K_dim, local_B_cols, gpu_count, grid_width, grid_height, block_width);
+    float time = 0;
+    f(block_a, block_lda, block_b, block_ldb, offset_c, N, local_A_rows, panel_K_dim, local_B_cols, gpu_count, grid_width, grid_height, block_width, &time);
+    *gpu_time += time;
   }
 
   if (rank == 0) {
@@ -144,10 +121,10 @@ int phpc_gemm_summa(gemm_t f, MPI_Comm grid_comm, const double *A, const double 
   return 0;
 }
 
-void phpc_gemm_summa_cuda(MPI_Comm grid_comm, const double *A, const double *B, double *C, int N, int gpu_count, int grid_width, int grid_height, int block_width) {
-  phpc_gemm_summa(phpc_gemm_cuda, grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, block_width);
+void phpc_gemm_summa_cuda(MPI_Comm grid_comm, const double *A, const double *B, double *C, int N, int gpu_count, int grid_width, int grid_height, int block_width, float *compute_time) {
+  phpc_gemm_summa(phpc_gemm_cuda, grid_comm, A, B, C, N, gpu_count, grid_width, grid_height, block_width, compute_time);
 }
 
-void phpc_gemm_summa_cublas(MPI_Comm grid_comm, const double *A, const double *B, double *C, int N, int gpu_count) {
-  phpc_gemm_summa(phpc_gemm_cublas, grid_comm, A, B, C, N, gpu_count, 0, 0, 0);
+void phpc_gemm_summa_cublas(MPI_Comm grid_comm, const double *A, const double *B, double *C, int N, int gpu_count, float *compute_time) {
+  phpc_gemm_summa(phpc_gemm_cublas, grid_comm, A, B, C, N, gpu_count, 0, 0, 0, compute_time);
 }
