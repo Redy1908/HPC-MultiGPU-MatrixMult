@@ -14,15 +14,16 @@ bin/iterative.out 128 >> csv/iterative.csv
 bin/iterative.out 256 >> csv/iterative.csv
 bin/iterative.out 512 >> csv/iterative.csv
 bin/iterative.out 1024 >> csv/iterative.csv
+bin/iterative.out 1448 >> csv/iterative.csv
 bin/iterative.out 2048 >> csv/iterative.csv
-# bin/iterative.out 4096 >> csv/iterative.csv
-# bin/iterative.out 8192 >> csv/iterative.csv
+bin/iterative.out 2896 >> csv/iterative.csv
+bin/iterative.out 4096 >> csv/iterative.csv
 
 echo "Run test A1"
-run 1 2048 32 1 1 testA1
 run 2 2048 32 1 1 testA1
 run 4 2048 32 1 1 testA1
 run 8 2048 32 1 1 testA1
+run 16 2048 32 1 1 testA1
 cat csv/testA1_*.csv | sort -h > csv/testA1.csv && rm csv/testA1_*.csv
 
 echo "Run test A2"
@@ -33,13 +34,13 @@ run 4 2048 32 1 1 testA2
 run 4 2048 32 2 2 testA2
 run 4 2048 32 4 4 testA2
 run 4 2048 32 8 8 testA2
-cat csv/testA2_*.csv | sort -h > csv/testA2.csv && rm csv/testA2_*.csv
+cat csv/testA2_*.csv | sort -t ',' -k 4,4 -n > csv/testA2.csv && rm csv/testA2_*.csv
 
 echo "Run test B"
-run 1 1024 32 2 2 testB
-run 2 2048 32 2 2 testB
-run 4 4096 32 2 2 testB
-run 8 8192 32 2 2 testB
+run 1 512 32 1 1 testB
+run 2 1024 32 1 1 testB
+run 4 2048 32 1 1 testB
+run 8 4096 32 1 1 testB
 cat csv/testB_*.csv | sort -h > csv/testB.csv && rm csv/testB_*.csv
 
 echo "Run test C"
@@ -52,7 +53,8 @@ run 4 2048 32 4 4 testC
 cat csv/testC_*.csv | sort -h > csv/testC.csv && rm csv/testC_*.csv
 
 echo "Run test D"
-run 1 64 32 2 2 testD
-run 4 128 32 2 2 testD
-# run 16 256 32 2 2 testD
+run 1 1024 32 1 1 testD
+run 2 1448 32 1 1 testD
+run 4 2048 32 1 1 testD
+run 8 2896 32 1 1 testD
 cat csv/testD_*.csv | sort -h > csv/testD.csv && rm csv/testD_*.csv
