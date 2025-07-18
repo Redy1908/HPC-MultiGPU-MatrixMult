@@ -160,6 +160,24 @@ Possiamo quindi specificare, per ogni device, l'ordine delle funzioni da svolger
 
 È bene far notare che i trasferimenti, anche se eseguiti tramite funzioni asincrone, sono bloccanti se la memoria host indirizzata non è \textit{page-locked}\cite{nvidiaCUDAProgramming}.
 
+\begin{algorithm}[H]
+    \caption{MultiGPU}
+    \begin{algorithmic}
+        \For{$i \gets 0$ \textbf{to} gpu count}
+        \State set device to $i$
+        \State create stream $i$
+        \State async copy $\mathbf{A}, \mathbf{B}^i, \mathbf{C}^i$ from host to device on stream $i$
+        \State async execute $\mathbf{C}^{i} \gets \mathbf{C}^{i} + \mathbf{A}\mathbf{B}^{i}$ on stream $i$
+        \State async copy $\mathbf{A}, \mathbf{B}^i, \mathbf{C}^i$ from device to host on stream $i$
+        \EndFor
+
+        \For{$i \gets 0$ \textbf{to} gpu count}
+        \State wait stream $i$
+        \State destroy stream $i$
+        \EndFor
+    \end{algorithmic}
+\end{algorithm}
+
 \subsubsection{Kernel}
 
 Come descritto in precedenza, nel prodotto tra matrici ogni elemento $\mathbf{C}_{i,j}$ è dato dal prodotto scalare tra la riga $i$-esima di $\mathbf{A}$ e la colonna $j$-esima di $\mathbf{B}$. Per implementare questa operazione usando CUDA, possiamo mappare i thread della griglia agli elementi della matrice di output in modo che ognuno sia responsabile del calcolo di un singolo elemento. Gli indici dell'elemento che ogni thread dovrà calcolare saranno:
@@ -350,39 +368,7 @@ $$
 $$
 Il risultato sarà quindi salvato in una matrice column-major e che quindi corrisponderà al risultato cercato leggendolo in row-major.
 
-\section{Analisi}
-
-\subsection{Script e Configurazione dei Test}
-
-Per gestire l'esecuzione di un vasto numero di test con configurazioni eterogenee, è stato implementato un processo automatizzato orchestrato dallo script \texttt{scripts/run.sh}. La sua esecuzione può essere suddivisa nelle seguenti fasi:
-
-\begin{enumerate}
-    \item \textbf{Inizializzazione e Pulizia:} La prima azione dello script è la preparazione dell'ambiente di esecuzione. Vengono rimossi i risultati di esecuzioni precedenti eliminando il contenuto delle directory \texttt{logs/ csv/ plots/ profiling/ bin/}, se in caso queste non dovessero esistere verranno create. Questo garantisce che ogni esecuzione parta da uno stato pulito e che i risultati non vengano contaminati da test precedenti.
-
-    \item \textbf{Compilazione:} Viene compilato il codice sorgente presente nella directory \texttt{src/} usando \texttt{nvcc}. L'eseguibile risultante, \texttt{bin/main.out}, viene così aggiornato all'ultima versione del codice prima dell'avvio dei test.
-
-    \item \textbf{Iterazione sui File di Configurazione:} Lo script itera su tutti i file con estensione \texttt{.csv} presenti nella directory \texttt{tests/}. Ciascun file definisce una famiglia di test; al suo interno, ogni riga (esclusa l'intestazione) specifica i parametri per una singola esecuzione.
-
-    \item \textbf{Generazione e Sottomissione dei Job:} Per ogni riga di un file di configurazione, che rappresenta un singolo test, lo script esegue i seguenti passaggi:
-          \begin{itemize}
-              \item \textbf{Parsing dei Parametri:} I valori per \texttt{matrix\_size}, \texttt{n\_proc}, \texttt{n\_gpu}, \texttt{tile\_width}, \texttt{grid\_width} e \texttt{grid\_height} vengono estratti dalla riga corrente.
-              \item \textbf{Creazione dello Script SLURM:} Viene generato dinamicamente uno script di sottomissione SLURM. Questo script contiene le direttive \texttt{\#SBATCH} necessarie per richiedere le risorse al cluster (nodi, task, GPU per task) e definire i file di output e di errore. Il comando di esecuzione principale è incapsulato da \texttt{nsys profile} per la profilazione, e l'eseguibile \texttt{bin/main.out} viene lanciato con i parametri specifici del test.
-              \item \textbf{Sottomissione del Job:} Lo script SLURM appena creato viene sottomesso al gestore di code tramite il comando \texttt{sbatch}. L'ID del job restituito da SLURM viene catturato e memorizzato.
-              \item \textbf{Gestione delle Dipendenze:} L'ID del job viene aggiunto a una lista di dipendenze che sarà utilizzata nella fase finale.
-          \end{itemize}
-
-    \item \textbf{Job di Analisi e Plotting:} Una volta che tutti i job di calcolo sono stati sottomessi, lo script genera un ultimo job SLURM. Questo job ha una dipendenza di tipo \texttt{afterok} da tutti i job sottomessi in precedenza. Ciò significa che verrà eseguito solo dopo che tutti i test di calcolo saranno terminati con successo. Il compito di questo job finale è eseguire lo script Python \texttt{scripts/plots.py}, che si occupa di aggregare i dati dai file \texttt{.csv} generati e di creare i grafici di performance.
-\end{enumerate}
-
-\subsection{Analisi delle misurazioni}
-Purtroppo, a causa di problemi tecnici con la versione di OpenMPI presente sul cluster, non è stato possibile valutare in maniera significativa il programma. In particolare, la funzione usata per creare la griglia di processi\footnote{\url{https://docs.open-mpi.org/en/v5.0.x/man-openmpi/man3/MPI_Cart_create.3.html}} potrebbe fallire arbitrariamente causando la chiusura forzata dell'eseguibile. Sperimentazioni ausiliarie\footnote{\url{https://github.com/dev-shaa/mpi-test}} hanno portato eventualmente sempre allo stesso errore, il che fa presagire qualche problema in quella versione della libreria.
-
-\subsection{NVIDIA Nsight Compute}
-
-NVIDIA Nsight Compute è un profiler per CUDA che fornisce metriche dettagliate delle prestazioni e debug delle API tramite interfaccia utente e strumenti da riga di comando.
-% TODO: che altro?
-
-Purtroppo, a causa di problemi tecnici con il cluster, non è stato possibile valutare in maniera approfondita le metriche che sarebbero fornite da queste applicazioni.
+\include{report-analysis}
 
 \section{Esplorazione di NCCL}
 

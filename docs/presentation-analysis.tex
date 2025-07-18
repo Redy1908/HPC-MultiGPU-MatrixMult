@@ -1,0 +1,58 @@
+\begin{frame}
+    \centering \Huge
+    Analisi
+\end{frame}
+
+\begin{frame}{Analisi}
+    \begin{itemize}
+        \item Sono stati riscontrati problemi con il cluster
+              \begin{itemize}
+                  \item SEGFAULT della versione installata di OpenMPI
+              \end{itemize}
+        \item Non è stato possibile analizzare correttamente l'esecuzione
+        \item Qualche risultato ottenuto da esecuzione su macchina locale
+              \begin{itemize}
+                  \item Non rappresentativo delle vere performance
+                  \item Nessuna analisi da Nsight Compute
+                  \item NVIDIA RTX 4060 % TODO: spec
+              \end{itemize}
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Analisi}{Grafici}
+    \begin{enumerate}
+        \item[a. i.] Al crescere del numero di processi, con numero di thread per processi fissato e dimensione fissata
+    \end{enumerate}
+\end{frame}
+
+\begin{frame}{Analisi}{Grafici}
+    \begin{enumerate}
+        \item[a. ii.] Al crescere del numero di thread per processo, con numero di processi fissato e dimensione fissata
+    \end{enumerate}
+\end{frame}
+
+\begin{frame}{Analisi}{Grafici}
+    \begin{enumerate}
+        \item[b.] Fissata la dimensione del problema per processo, al crescere del numero di processi, con numero di thread per processo fissato
+    \end{enumerate}
+\end{frame}
+
+\begin{frame}{Analisi}{Grafici}
+    \begin{enumerate}
+        \item[c.] Fissata la dimensione del problema per thread, al crescere del numero di thread, con numero di processi fissato.
+    \end{enumerate}
+\end{frame}
+
+\begin{frame}{Analisi}{Grafici}
+    \begin{enumerate}
+        \item[d.] Fissata la dimensione del problema per thread, al crescere del numero di processi, con numero di thread per processo fissato
+    \end{enumerate}
+\end{frame}
+
+\begin{frame}{Analisi}{Conclusioni}
+    \begin{itemize}
+        \item Non vantaggioso per matrici piccole ($\approx 512 \times 512$)
+        \item Aumentare thread più vantaggioso dell'aumentare i processi
+        \item Overhead di comunicazione abbatte l'efficienza
+    \end{itemize}
+\end{frame}
