@@ -30,64 +30,153 @@ Sono stati eseguiti i seguenti test:
 \begin{enumerate}
     \item al crescere del numero di processi e threads, con dimensione fissata
           \begin{enumerate}
-              \item al crescere del numero di processi, con numero di thread per processi fissato e
-                    dimensione fissata;
-              \item al crescere del numero di thread per processo, con numero di processi fissato e
-                    dimensione fissata;
+              \item al crescere delle dimensioni della matrice, a parità di processi (4) e thread (1024);
+              \item al crescere del numero di processi, a parità di thread (1024) e dimensioni della matrice ($2048 \times 2048$);
+              \item al crescere del numero di thread per processo, a parità di processi (4) e dimensioni della matrice ($2048 \times 2048$);
           \end{enumerate}
-    \item fissata la dimensione del problema per processo, al crescere del numero di processi, con numero di thread per processo fissato;
-    \item fissata la dimensione del problema per thread, al crescere del numero di thread, con numero di processi fissato;
-    \item fissata la dimensione del problema per thread, al crescere del numero di processi, con numero di thread per processo fissato.
+    \item al crescere del numero di processi, a parità di thread ($1024 \times 1024$) e dimensione del problema per processo ($1024 \times 1024$);
+    \item al crescere del numero di thread, a parità di processi (4) e dimensione del problema per thread;
+    \item al crescere del numero di processi, a parità di thread (1024) e dimensione del problema per thread.
 \end{enumerate}
 
-% \begin{table}[h]
-%     \centering
-%     \begin{tabular}{|l|l|}
-%         \hline
-%         Matrice            & Tempo (s)  \\ \hline
-%         $64   \times 64  $ & 0.000572   \\ \hline
-%         $128  \times 128 $ & 0.004717   \\ \hline
-%         $256  \times 256 $ & 0.035934   \\ \hline
-%         $512  \times 512 $ & 0.285774   \\ \hline
-%         $1024 \times 1024$ & 2.272720   \\ \hline
-%         $1448 \times 1448$ & 6.429910   \\ \hline
-%         $2048 \times 2048$ & 18.552951  \\ \hline
-%         $2896 \times 2896$ & 52.893937  \\ \hline
-%         $4096 \times 4096$ & 152.709002 \\ \hline
-%     \end{tabular}
-%     \caption{Prestazioni algoritmo sequenziale}
-% \end{table}
+\begin{table}[h]
+    \centering
+    \begin{tabular}{cc}
+        \hline
+        \textbf{Matrice}    & \textbf{Tempo (s)} \\ \hline
+        $16   \times 16   $ & 0.000012           \\
+        $32   \times 32   $ & 0.000087           \\
+        $64   \times 64   $ & 0.000573           \\
+        $128  \times 128  $ & 0.004766           \\
+        $256  \times 256  $ & 0.036135           \\
+        $512  \times 512  $ & 0.284944           \\
+        $1024 \times 1024 $ & 2.281789           \\
+        $2048 \times 2048 $ & 18.509902          \\
+        $4096 \times 4096 $ & 151.839314         \\ \hline
+    \end{tabular}
+    \caption{Tempi di esecuzione algoritmo sequenziale}
+\end{table}
 
-% \begin{table}[h]
-%     \begin{tabular}{|c|c|c|c|c|c|c|}
-%         \hline
-%         Matrice    & Processi & Blocchi & Thread & GPU (s)  & Kernel (s) & cuBLAS (s) \\ \hline
-%         $ 2048^2 $ & 2        & 1       & 1024   & 2.317158 & 2.200990   & 0.286483   \\ \hline
-%         $ 2048^2 $ & 4        & 1       & 1024   & 2.234591 & 2.078579   & 0.274687   \\ \hline
-%         $ 2048^2 $ & 8        & 1       & 1024   & 2.278694 & 2.010755   & 0.325228   \\ \hline
-%         $ 2048^2 $ & 16       & 1       & 1024   & 2.438489 & 1.928693   & 0.351413   \\ \hline
-%     \end{tabular}
-%     \caption{1a}
-% \end{table}
+\begin{table}[h]
+    \centering
+    \begin{tabular}{cc}
+        \hline
+        \textbf{Matrice}    & \textbf{Tempo (s)} \\ \hline
+        $16   \times 16   $ & 0.000012           \\
+        $32   \times 32   $ & 0.000087           \\
+        $64   \times 64   $ & 0.000573           \\
+        $128  \times 128  $ & 0.004766           \\
+        $256  \times 256  $ & 0.036135           \\
+        $512  \times 512  $ & 0.284944           \\
+        $1024 \times 1024 $ & 2.281789           \\
+        $2048 \times 2048 $ & 18.509902          \\
+        $4096 \times 4096 $ & 151.839314         \\ \hline
+    \end{tabular}
+    \caption{Tempi di esecuzione cuBLAS}
+\end{table}
 
-% \begin{table}[h]
-%     \begin{tabular}{|c|c|c|c|c|c|}
-%         \hline
-%         Matrice    & Processi & Blocchi & Thread & GPU (Kernel)            & cuBLAS     \\ \hline
-%         $ 2048^2 $ & 4        & 1       & 1024   & 2.317158 s (2.200990 s) & 0.286483 s \\ \hline
-%         $ 2048^2 $ & 4        & 4       & 1024   & 2.234591 s (2.078579 s) & 0.274687 s \\ \hline
-%         $ 2048^2 $ & 4        & 8       & 1024   & 2.278694 s (2.010755 s) & 0.325228 s \\ \hline
-%         $ 2048^2 $ & 4        & 16      & 1024   & 2.438489 s (1.928693 s) & 0.351413 s \\ \hline
-%     \end{tabular}
-%     \caption{1b}
-% \end{table}
+\begin{table}[h]
+    \centering
+    \begin{tabular}{cccccc}
+        \hline
+        \textbf{Matrice}    & \textbf{Processi} & \textbf{Thread} & \textbf{Tempo (s)} & \textbf{Speedup} & \textbf{Efficienza} \\ \hline
+        $16   \times 16   $ & 4                 & 1024            & 0.000012           & 50               & 0.001               \\
+        $32   \times 32   $ & 4                 & 1024            & 0.000012           &                  & 0.001               \\
+        $64   \times 64   $ & 4                 & 1024            & 0.000012           &                  & 0.001               \\
+        $128  \times 128  $ & 4                 & 1024            & 0.000012           &                  & 0.001               \\
+        $256  \times 256  $ & 4                 & 1024            & 0.000012           &                  & 0.001               \\
+        $512  \times 512  $ & 4                 & 1024            & 0.000012           &                  & 0.001               \\
+        $1024 \times 1024 $ & 4                 & 1024            & 0.000012           &                  & 0.001               \\
+        $2048 \times 2048 $ & 4                 & 1024            & 0.000012           &                  & 0.001               \\
+        $4096 \times 4096 $ & 4                 & 1024            & 0.000012           &                  & 0.001               \\ \hline
+    \end{tabular}
+    \caption{Metriche test 1a}
+\end{table}
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{cccccc}
+        \hline
+        \textbf{Matrice}   & \textbf{Processi} & \textbf{Thread} & \textbf{Tempo (s)} & \textbf{Speedup} & \textbf{Efficienza} \\ \hline
+        $2048 \times 2048$ & 2                 & 1024            & 0.000012           & 50               & 0.001               \\
+        $2048 \times 2048$ & 4                 & 1024            & 0.000012           &                  & 0.001               \\
+        $2048 \times 2048$ & 8                 & 1024            & 0.000012           &                  & 0.001               \\
+        $2048 \times 2048$ & 16                & 1024            & 0.000012           &                  & 0.001               \\ \hline
+    \end{tabular}
+    \caption{Metriche test 1b}
+\end{table}
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{cccccc}
+        \hline
+        \textbf{Matrice}   & \textbf{Processi} & \textbf{Thread} & \textbf{Tempo (s)} & \textbf{Speedup} & \textbf{Efficienza} \\ \hline
+        $2048 \times 2048$ & 4                 & 256             & 0.000012           & 50               & 0.001               \\
+        $2048 \times 2048$ & 4                 & 1024            & 0.000012           &                  & 0.001               \\
+        $2048 \times 2048$ & 4                 & 4096            & 0.000012           &                  & 0.001               \\
+        $2048 \times 2048$ & 4                 & 16384           & 0.000012           &                  & 0.001               \\ \hline
+    \end{tabular}
+    \caption{Metriche test 1c}
+\end{table}
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{cccccc}
+        \hline
+        \textbf{Matrice}    & \textbf{Processi} & \textbf{Thread} & \textbf{Tempo (s)} & \textbf{Speedup} & \textbf{Efficienza} \\ \hline
+        $1024 \times 1024 $ & 1                 & 1024            & 0.287              & 50               & 0.001               \\
+        $2048 \times 2048 $ & 4                 & 1024            & 2.211              & 50               & 0.001               \\
+        $4096 \times 4096 $ & 16                & 1024            & 16.459             &                  & 0.001               \\ \hline
+        %                     &                   &                    &                  &                     \\ \hline
+        % \textbf{Matrice}    & \textbf{Processi} & \textbf{Tempo (s)} & \textbf{Speedup} & \textbf{Efficienza} \\ \hline
+        % $1024 \times 1024 $ & 1                 & 0.040 s            & 50               & 0.001               \\
+        % $2048 \times 2048 $ & 4                 & 0.278 s            & 50               & 0.001               \\
+        % $4096 \times 4096 $ & 16                & 1.986 s            &                  & 0.001               \\ \hline
+    \end{tabular}
+    \caption{Metriche test b}
+\end{table}
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{cccccc}
+        \hline
+        \textbf{Matrice}    & \textbf{Processi} & \textbf{Thread} & \textbf{Tempo (s)} & \textbf{Speedup} & \textbf{Efficienza} \\ \hline
+        $64 \times 64 $     & 4                 & 16              & 0.109685           & 50               & 0.001               \\
+        $128 \times 128 $   & 4                 & 64              & 0.114456           & 50               & 0.001               \\
+        $256 \times 256 $   & 4                 & 256             & 0.114456           & 50               & 0.001               \\
+        $512 \times 512 $   & 4                 & 1024            & 0.114456           & 50               & 0.001               \\
+        $1024 \times 1024 $ & 4                 & 4096            & 0.114456           & 50               & 0.001               \\
+        $2048 \times 2048 $ & 4                 & 16384           & 0.111614           &                  & 0.001               \\ \hline
+    \end{tabular}
+    \caption{Metriche test c}
+\end{table}
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{cccccc}
+        \hline
+        \textbf{Matrice}    & \textbf{Processi} & \textbf{Thread} & \textbf{Tempo (s)} & \textbf{Speedup} & \textbf{Efficienza} \\ \hline
+        $1024 \times 1024 $ & 1                 & 1024            & 0.109685           & 50               & 0.001               \\
+        $2048 \times 2048 $ & 4                 & 1024            & 0.114456           & 50               & 0.001               \\
+        $4096 \times 4096 $ & 16                & 1024            & 0.111614           &                  & 0.001               \\ \hline
+    \end{tabular}
+    \caption{Metriche test d}
+\end{table}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.7\textwidth]{./imgs/graphs/caso_0.png}
+    \includegraphics[width=0.7\textwidth]{./imgs/graphs/caso_0_speedup.png}
+    \includegraphics[width=0.7\textwidth]{./imgs/graphs/caso_0_efficiency.png}
+    \caption{Caso 1a}
+\end{figure}
 
 \begin{figure}[h]
     \centering
     \includegraphics[width=0.7\textwidth]{./imgs/graphs/caso_a1.png}
     \includegraphics[width=0.7\textwidth]{./imgs/graphs/caso_a1_speedup.png}
     \includegraphics[width=0.7\textwidth]{./imgs/graphs/caso_a1_efficiency.png}
-    \caption{Caso 1a}
+    \caption{Caso 1b}
 \end{figure}
 
 \begin{figure}[h]
@@ -95,30 +184,30 @@ Sono stati eseguiti i seguenti test:
     \includegraphics[width=0.7\textwidth]{./imgs/graphs/caso_a2.png}
     \includegraphics[width=0.7\textwidth]{./imgs/graphs/caso_a2_speedup.png}
     \includegraphics[width=0.7\textwidth]{./imgs/graphs/caso_a2_efficiency.png}
-    \caption{Caso 1b}
+    \caption{Caso 1c}
 \end{figure}
 
 \begin{figure}[h]
     \centering
     \includegraphics[width=0.7\textwidth]{./imgs/graphs/caso_b.png}
-    \includegraphics[width=0.7\textwidth]{./imgs/graphs/caso_b_scaled_speedup.png}
-    \includegraphics[width=0.7\textwidth]{./imgs/graphs/caso_b_scaled_efficiency.png}
+    \includegraphics[width=0.7\textwidth]{./imgs/graphs/caso_b_speedup.png}
+    \includegraphics[width=0.7\textwidth]{./imgs/graphs/caso_b_efficiency.png}
     \caption{Caso 2}
 \end{figure}
 
 \begin{figure}[h]
     \centering
     \includegraphics[width=0.7\textwidth]{./imgs/graphs/caso_c.png}
-    \includegraphics[width=0.7\textwidth]{./imgs/graphs/caso_c_scaled_speedup.png}
-    \includegraphics[width=0.7\textwidth]{./imgs/graphs/caso_c_scaled_efficiency.png}
+    \includegraphics[width=0.7\textwidth]{./imgs/graphs/caso_c_speedup.png}
+    \includegraphics[width=0.7\textwidth]{./imgs/graphs/caso_c_efficiency.png}
     \caption{Caso 3}
 \end{figure}
 
 \begin{figure}[h]
     \centering
     \includegraphics[width=0.7\textwidth]{./imgs/graphs/caso_d.png}
-    \includegraphics[width=0.7\textwidth]{./imgs/graphs/caso_d_scaled_speedup.png}
-    \includegraphics[width=0.7\textwidth]{./imgs/graphs/caso_d_scaled_efficiency.png}
+    \includegraphics[width=0.7\textwidth]{./imgs/graphs/caso_d_speedup.png}
+    \includegraphics[width=0.7\textwidth]{./imgs/graphs/caso_d_efficiency.png}
     \caption{Caso 4}
 \end{figure}
 

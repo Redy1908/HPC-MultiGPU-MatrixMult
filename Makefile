@@ -1,6 +1,6 @@
 all: iterative cuda clean
 
-cuda: cuda_module iterative
+cuda: cuda_module
 	mkdir -p bin
 	mpicc src/main.c src/phpc_summa.c src/utils.c cuda.o -o bin/main.out -lcudart -lcublas -lm -Wall
 
