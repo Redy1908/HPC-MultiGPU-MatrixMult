@@ -18,6 +18,11 @@ column_names = [
     "time_cuda",
     "time_cuda_gpu",
     "time_cublas",
+    "speedup",
+    "speedup_kernel",
+    "speedup_cublas",
+    "efficiency",
+    "efficiency_kernel",
 ]
 
 
@@ -175,7 +180,7 @@ def plot(
     show_iterative=True,
 ) -> None:
     results_sequential = get_sequential_times()
-    results = pd.read_csv(input_file, header=None, names=column_names)
+    results = pd.read_csv(input_file)
 
     x_values = results[x_axis_param]
     total_threads = results["n_proc"] * results["total_threads"]

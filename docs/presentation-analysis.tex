@@ -14,7 +14,11 @@
               \begin{itemize}
                   \item Non rappresentativo delle vere performance
                   \item Nessuna analisi da Nsight Compute
-                  \item NVIDIA RTX 4060 % TODO: spec
+                        %   \item NVIDIA RTX 4060 % TODO: spec
+
+                  \item CPU AMD Ryzen 5 7600
+                  \item GPU NVIDIA GTX 1050Ti
+                  \item 32 GB di RAM
               \end{itemize}
     \end{itemize}
 \end{frame}
@@ -161,6 +165,18 @@
     \begin{itemize}
         \item Non vantaggioso per matrici piccole ($\approx 512 \times 512$)
         \item Aumentare thread più vantaggioso dell'aumentare i processi
-        \item Overhead di comunicazione abbatte l'efficienza
+              \begin{itemize}
+                  \item Tempi di esecuzione minori
+                  \item Speedup maggiore
+              \end{itemize}
+        \item Trasferimento di memoria non tanto un problema...
+              \begin{itemize}
+                  \item ...ma attesa della stessa GPU da più processi sì
+              \end{itemize}
+        \item Efficienza quasi nulla
+              \begin{itemize}
+                  \item Limitazioni della configurazione usata
+                  \item Altissimo numero di thread
+              \end{itemize}
     \end{itemize}
 \end{frame}
