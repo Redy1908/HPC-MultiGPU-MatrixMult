@@ -238,7 +238,7 @@
 
 \begin{frame}{Implementazione}{Kernel 1}
     \begin{algorithm}[H]
-        \caption{Matrix Multiplication Kernel 1}
+        \caption{Kernel 1}
         \begin{algorithmic}[1]
             \State $\texttt{row} \gets \texttt{blockIdx.y} \cdot \texttt{blockDim.y} + \texttt{threadIdx.y}$
             \State $\texttt{col} \gets \texttt{blockIdx.x} \cdot \texttt{blockDim.x} + \texttt{threadIdx.x}$
@@ -270,7 +270,7 @@
     \end{figure}
 \end{frame}
 
-\begin{frame}{Implementazione}{Kernel 1}
+\begin{frame}{Implementazione}{Kernel 2: Shared memory}
     \begin{itemize}
         \item Ampi margini di miglioramento rispetto alla memoria
               \begin{itemize}
@@ -287,7 +287,7 @@
     \end{itemize}
 \end{frame}
 
-\begin{frame}{Implementazione}{Kernel 2}
+\begin{frame}{Implementazione}{Kernel 2: Shared memory}
     \begin{figure}[H]
         \centering
         \includegraphics[width=0.7\textwidth]{imgs/memory_access1.png}
@@ -295,9 +295,9 @@
     \end{figure}
 \end{frame}
 
-\begin{frame}{Implementazione}{Kernel 2}
+\begin{frame}{Implementazione}{Kernel 2: Shared memory}
     \begin{algorithm}[H]
-        \caption{Tiled Matrix Multiplication Kernel 2}
+        \caption{Kernel 2}
         \begin{algorithmic}[1]
             \State \texttt{Pval} $\gets$ 0
             \For{$ph \gets 0$ \textbf{to} $\texttt{Width} / \texttt{TILE\_WIDTH} - 1$}
@@ -314,10 +314,19 @@
     \end{algorithm}
 \end{frame}
 
-\begin{frame}{Implementazione}{Kernel 2}
+\begin{frame}{Implementazione}{Kernel 3: Padding}
+    \begin{itemize}
+        \item Il kernel precedente funziona solo se le dimensioni della matrice sono multipli di $TILE\_WIDTH$.
+        \item Per gestire matrici di dimensioni arbitrarie, si introduce il \textbf{padding}.
+        \item Il ciclo principale viene esteso per coprire l'intera matrice, eseguendo $\lceil WIDTH/TILE\_WIDTH \rceil$ iterazioni.
+        \item I thread caricano uno zero (padding) se le loro coordinate globali cadono fuori dai bordi della matrice, garantendo così la correttezza del calcolo ed evitando accessi a memoria non validi.
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Implementazione}{Kernel 3: Padding}
     \begin{algorithm}[H]
         \scriptsize
-        \caption{Tiled Matrix Multiplication Kernel 2 con padding}
+        \caption{Kernel 3 con padding}
         \begin{algorithmic}[1]
             \State $Pval \gets 0$
             \For{$ph \gets 0$ \textbf{to} $\lceil W/T \rceil -1$}
@@ -336,10 +345,40 @@
     \end{algorithm}
 \end{frame}
 
-\begin{frame}{Implementazione}{Kernel 3}
+\begin{frame}{Implementazione}{Kernel 4: Grid-Stride Loop}
     \begin{itemize}
-        \item TODO
+        \item Il kernel precedente richiede una griglia di lancio grande almeno quanto la matrice di output.
+        \item Per una maggiore flessibilità, vogliamo disaccoppiare la dimensione della griglia da quella del problema.
+        \item La soluzione è il \textbf{grid-stride loop}: ogni blocco elabora una tile di output, poi avanza di uno "stride" (pari alla dimensione della griglia) per processare le tile successive.
+        \item Questo permette di usare se necessario una griglia più piccola  per risolvere problemi di dimensioni arbitrarie
     \end{itemize}
+\end{frame}
+
+\begin{frame}{Implementazione}{Kernel 4: Grid-Stride Loop}
+    \begin{algorithm}[H]
+        \scriptsize
+        \caption{Kernel finale con Grid-Stride Loop}
+        \begin{algorithmic}[1]
+            \State $num\_tiles \gets \lceil M/T \rceil \cdot \lceil N/T \rceil$
+            \State $block\_id \gets blockIdx.y \cdot gridDim.x + blockIdx.x$
+            \State $stride \gets gridDim.x \cdot gridDim.y$
+            \Statex
+            \State \For{$tile\_idx \gets block\_id$ \textbf{to} $num\_tiles - 1$ \textbf{step} $stride$}
+            \State $by \gets tile\_idx / \lceil N/T \rceil$ \Comment{Calcola la coordinata Y della tile}
+            \State $bx \gets tile\_idx \pmod{\lceil N/T \rceil}$ \Comment{Calcola la coordinata X della tile}
+            \Statex
+            \State $Row \gets by \cdot T + ty$
+            \State $Col \gets bx \cdot T + tx$
+            \State $Pval \gets 0$
+            \State \Comment{Il ciclo interno per il calcolo del prodotto rimane invariato...}
+            \State \Comment{...utilizzando il padding per caricare in shared memory.}
+            \State \texttt{...}
+            \If{$Row < M~\&\&~Col < N$}
+            \State $C[Row\cdot N + Col] \mathrel{+}= Pval$
+            \EndIf
+            \State \EndFor
+        \end{algorithmic}
+    \end{algorithm}
 \end{frame}
 
 \include{presentation-analysis}
