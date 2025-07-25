@@ -48,6 +48,7 @@
 
 In questo progetto è stata sviluppata un'applicazione per il calcolo del prodotto tra matrici in ambienti ad alte prestazioni, tramite l’uso combinato di tecnologie MPI (Message Passing Interface) e CUDA per parallelizzare il lavoro su cluster multi-nodo e multi-GPU. L'esecuzione e la gestione delle risorse del cluster sono state orchestrate tramite il workload manager SLURM.
 
+\medskip
 Definiamo formalmente l'operazione di prodotto tra matrici.
 Siano date una matrice $\mathbf{A} \in \mathbb{R}^{m\times{k}}$ ed una seconda matrice $\mathbf{B} \in \mathbb{R}^{k\times{n}}$.
 Si definisce il prodotto matriciale di $\mathbf{A}$ per $\mathbf{B}$ la matrice $\mathbf{C}=\mathbf{A}\mathbf{B} \in \mathbb{R}^{m\times{n}}$ in cui ogni elemento $\mathbf{C}_{i,j}$ è dato dal prodotto scalare tra la $i$-esima riga di $\mathbf{A}$ per la $j$-esima colonna di $\mathbf{B}$:
